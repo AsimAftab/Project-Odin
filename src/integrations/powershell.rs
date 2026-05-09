@@ -1,0 +1,80 @@
+use std::path::{Path, PathBuf};
+
+use anyhow::Result;
+
+use crate::integrations::process;
+use crate::models::environment::ProfileSnapshot;
+use crate::utils::checksum;
+
+pub fn executable() -> Option<String> {
+    if process::command_exists("pwsh") {
+        return Some("pwsh".to_string());
+    }
+    if process::command_exists("powershell") {
+        return Some("powershell".to_string());
+    }
+
+    for candidate in powershell_candidates() {
+        if candidate.exists() {
+            return Some(candidate.to_string_lossy().to_string());
+        }
+    }
+    None
+}
+
+pub async fn profile_path() -> Result<Option<PathBuf>> {
+    let Some(executable) = executable() else {
+        return Ok(None);
+    };
+    let output = process::capture(&executable, &["-NoProfile", "-Command", "$PROFILE"]).await?;
+    if output.code != 0 || output.stdout.is_empty() {
+        return Ok(None);
+    }
+    Ok(Some(PathBuf::from(output.stdout)))
+}
+
+pub async fn read_profile() -> Result<Option<ProfileSnapshot>> {
+    let path = match profile_path().await {
+        Ok(Some(path)) => path,
+        Ok(None) => return Ok(None),
+        Err(error) => {
+            eprintln!("warning: PowerShell profile probe failed: {error:#}");
+            return Ok(None);
+        }
+    };
+    if !path.exists() {
+        return Ok(Some(ProfileSnapshot {
+            path: path.to_string_lossy().to_string(),
+            content: String::new(),
+            sha256: checksum::sha256_bytes(b""),
+        }));
+    }
+    let content = tokio::fs::read_to_string(&path).await.unwrap_or_default();
+    Ok(Some(ProfileSnapshot {
+        path: path.to_string_lossy().to_string(),
+        sha256: checksum::sha256_bytes(content.as_bytes()),
+        content,
+    }))
+}
+
+pub async fn profile_path_lossy() -> Option<PathBuf> {
+    match profile_path().await {
+        Ok(path) => path,
+        Err(error) => {
+            eprintln!("warning: PowerShell profile path probe failed: {error:#}");
+            None
+        }
+    }
+}
+
+fn powershell_candidates() -> Vec<PathBuf> {
+    let mut candidates = Vec::new();
+    if let Ok(program_files) = std::env::var("ProgramFiles") {
+        candidates.push(Path::new(&program_files).join(r"PowerShell\7\pwsh.exe"));
+    }
+    if let Ok(system_root) = std::env::var("SystemRoot") {
+        candidates
+            .push(Path::new(&system_root).join(r"System32\WindowsPowerShell\v1.0\powershell.exe"));
+    }
+    candidates
+}

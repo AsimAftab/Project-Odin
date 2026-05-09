@@ -1,0 +1,5 @@
+/target/
+/.odin/
+*.pdb
+*.exe
+*.log

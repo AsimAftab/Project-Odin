@@ -1,0 +1,17 @@
+storage_dir: null
+restore:
+  package_managers:
+    - winget
+    - choco
+    - scoop
+  restore_user_environment: true
+  restore_path: true
+  restore_vscode_extensions: true
+  restore_git_config: true
+sync:
+  branch: main
+  remote: null
+github:
+  repository_url: null
+  branch: main
+  token_key: null
