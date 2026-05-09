@@ -44,40 +44,41 @@ jobs:
             $hash = (Get-FileHash -Algorithm SHA256 (Join-Path dist $_)).Hash.ToLowerInvariant()
             "$hash  $_"
           } | Set-Content -Encoding UTF8 dist/checksums.txt
-          @"
-# Odin $env:GITHUB_REF_NAME
-
-## Installation
-
-```powershell
-irm https://github.com/${{ github.repository }}/releases/latest/download/bootstrap.ps1 | iex
-```
-
-Or download `install.ps1` from this release and run:
-
-```powershell
-.\install.ps1 -Repository ${{ github.repository }} -Scope User
-```
-
-Then initialize:
-
-```powershell
-odin init
-```
-
-## Included artifacts
-
-- odin.exe
-- odin-windows-x64.zip
-- install.ps1
-- uninstall.ps1
-- bootstrap.ps1
-- checksums.txt
-
-## Checksums
-
-See `checksums.txt` in this release.
-"@ | Set-Content -Encoding UTF8 dist/release-notes.md
+          $repo = $env:GITHUB_REPOSITORY
+          @(
+            "# Odin $env:GITHUB_REF_NAME",
+            "",
+            "## Installation",
+            "",
+            "```powershell",
+            "irm https://github.com/$repo/releases/latest/download/bootstrap.ps1 | iex",
+            "```",
+            "",
+            "Or download ``install.ps1`` from this release and run:",
+            "",
+            "```powershell",
+            ".\install.ps1 -Repository $repo -Scope User",
+            "```",
+            "",
+            "Then initialize:",
+            "",
+            "```powershell",
+            "odin init",
+            "```",
+            "",
+            "## Included artifacts",
+            "",
+            "- odin.exe",
+            "- odin-windows-x64.zip",
+            "- install.ps1",
+            "- uninstall.ps1",
+            "- bootstrap.ps1",
+            "- checksums.txt",
+            "",
+            "## Checksums",
+            "",
+            "See ``checksums.txt`` in this release."
+          ) | Set-Content -Encoding UTF8 dist/release-notes.md
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
