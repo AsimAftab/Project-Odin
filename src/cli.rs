@@ -23,7 +23,9 @@ pub enum Commands {
     Config(ConfigArgs),
     Snapshot(SnapshotArgs),
     Restore(RestoreArgs),
+    #[command(visible_aliases = ["backup", "backup-online", "sync-online", "sync-global"])]
     Sync(SyncArgs),
+    Update(UpdateArgs),
     Doctor(DoctorArgs),
     Diff(DiffArgs),
     Export(ExportArgs),
@@ -63,6 +65,12 @@ pub struct ConfigGithubArgs {
 
     #[arg(long)]
     pub non_interactive: bool,
+
+    #[arg(
+        long,
+        help = "Immediately commit and push current Odin state after saving GitHub config."
+    )]
+    pub sync_now: bool,
 }
 
 #[derive(Debug, Args)]
@@ -115,6 +123,15 @@ pub struct SyncArgs {
 
     #[arg(long)]
     pub message: Option<String>,
+}
+
+#[derive(Debug, Args)]
+pub struct UpdateArgs {
+    #[arg(
+        long,
+        help = "Only check if an update is available without installing it."
+    )]
+    pub check: bool,
 }
 
 #[derive(Debug, Args)]

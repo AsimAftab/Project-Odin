@@ -7,3 +7,4 @@ pub mod init;
 pub mod restore;
 pub mod snapshot;
 pub mod sync;
+pub mod update;

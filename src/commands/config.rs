@@ -5,7 +5,10 @@ use dialoguer::{Confirm, Input, Password};
 use crate::cli::{ConfigArgs, ConfigCommands, ConfigGithubArgs, ConfigShowArgs};
 use crate::core::context::AppContext;
 use crate::integrations::github::GitHubClient;
-use crate::services::{config_service::ConfigService, secret_service::SecretService};
+use crate::services::{
+    config_service::ConfigService, secret_service::SecretService, storage::SnapshotStore,
+    sync_service::SyncService,
+};
 use crate::utils::terminal;
 
 pub async fn run(ctx: AppContext, args: ConfigArgs) -> Result<()> {
@@ -63,12 +66,35 @@ async fn github(ctx: AppContext, args: ConfigGithubArgs) -> Result<()> {
             .default(true)
             .interact()?
     {
-        crate::services::sync_service::SyncService::new(
-            crate::services::storage::SnapshotStore::new(ctx.odin_dir().clone()),
-        )
-        .ensure_repo(Some(repo), &branch)
-        .await
-        .context("failed to initialize snapshot git repository")?;
+        SyncService::new(SnapshotStore::new(ctx.odin_dir().clone()))
+            .ensure_repo(Some(repo.clone()), &branch)
+            .await
+            .context("failed to initialize snapshot git repository")?;
+    }
+
+    let sync_now = if args.sync_now {
+        true
+    } else if interactive {
+        Confirm::new()
+            .with_prompt("Push current Odin state to GitHub now?")
+            .default(false)
+            .interact()?
+    } else {
+        false
+    };
+
+    if sync_now {
+        SyncService::new(SnapshotStore::new(ctx.odin_dir().clone()))
+            .sync(
+                Some(repo.clone()),
+                false,
+                None,
+                None,
+                &branch,
+                Some("Configure GitHub sync".to_string()),
+            )
+            .await
+            .context("failed to push Odin state after GitHub configuration")?;
     }
 
     println!("{} GitHub connected as {}", "ok".green(), user.login);
@@ -78,6 +104,14 @@ async fn github(ctx: AppContext, args: ConfigGithubArgs) -> Result<()> {
         config.github.repository_url.unwrap_or_default()
     );
     println!("{} {}", "branch".cyan(), config.github.branch);
+    if sync_now {
+        println!("{} initial backup pushed", "ok".green());
+    } else {
+        println!(
+            "{} run `odin sync` (or `odin backup`) to push snapshots",
+            "next".cyan()
+        );
+    }
     Ok(())
 }
 

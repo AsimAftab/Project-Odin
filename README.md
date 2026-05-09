@@ -17,6 +17,8 @@ odin snapshot   Capture current machine state into ~/.odin
 odin dashboard  Show snapshot status and next commands
 odin restore    Reinstall and restore from the latest snapshot
 odin sync       Commit and push snapshots to a GitHub repository
+odin backup     Alias for `odin sync` (online backup to Git)
+odin update     Check for and install the latest Odin release
 odin doctor     Diagnose broken PATH entries, missing SDKs, and conflicts
 odin diff       Compare the live machine against the last snapshot
 odin export     Generate PowerShell bootstrap and restore scripts
@@ -67,6 +69,12 @@ odin config github
 odin sync
 ```
 
+Configure and push in one step:
+
+```powershell
+odin config github --sync-now
+```
+
 The GitHub token is stored in the OS credential store.
 
 Odin can also create a private GitHub repository through the GitHub API:
@@ -107,8 +115,26 @@ odin config show
 
 ```powershell
 cargo build --release
-.\scripts\install.ps1
+.\scripts\install.ps1 -LocalBinary .\target\release\odin.exe -Force
 odin --help
+```
+
+Global install from GitHub Releases:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\bootstrap.ps1 -Repository OWNER/REPO -Scope User
+```
+
+System-wide install (admin shell):
+
+```powershell
+.\scripts\install.ps1 -Scope Machine -Repository OWNER/REPO
+```
+
+Uninstall:
+
+```powershell
+.\scripts\uninstall.ps1 -Scope User
 ```
 
 ## Release Automation
@@ -116,7 +142,11 @@ odin --help
 GitHub Actions workflows are included:
 
 - `.github/workflows/ci.yml` runs format checks, clippy, tests, and release build.
-- `.github/workflows/release.yml` builds `odin.exe`, packages it, creates a GitHub Release, and uploads assets on `v*.*.*` tags.
+- `.github/workflows/release.yml` builds `odin.exe`, packages it, creates a GitHub Release, and uploads:
+  - `odin.exe`
+  - `odin-windows-x64.zip`
+  - `install.ps1`, `uninstall.ps1`, `bootstrap.ps1`
+  - `checksums.txt`
 
 ## Development
 
@@ -124,6 +154,7 @@ GitHub Actions workflows are included:
 cargo fmt
 cargo test
 cargo run -- snapshot
+cargo run -- update --check
 ```
 
 The codebase is organized around command handlers, services, typed models, utility code, and Windows-specific integrations so Linux/macOS support and future plugin/Sentinel AI integrations can be added behind stable service interfaces.

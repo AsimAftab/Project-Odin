@@ -25,6 +25,18 @@ pub struct GitHubUser {
     pub login: String,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+pub struct GitHubRelease {
+    pub tag_name: String,
+    pub assets: Vec<GitHubReleaseAsset>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct GitHubReleaseAsset {
+    pub name: String,
+    pub browser_download_url: String,
+}
+
 impl GitHubClient {
     pub fn new(token: &str) -> Result<Self> {
         let mut headers = HeaderMap::new();
@@ -84,5 +96,30 @@ impl GitHubClient {
             let body = response.text().await.unwrap_or_default();
             anyhow::bail!("GitHub authentication failed with {status}: {body}");
         }
+    }
+}
+
+pub async fn latest_release(owner: &str, repo: &str) -> Result<GitHubRelease> {
+    release(owner, repo, None).await
+}
+
+async fn release(owner: &str, repo: &str, tag: Option<&str>) -> Result<GitHubRelease> {
+    let client = reqwest::Client::new();
+    let url = match tag {
+        Some(tag) => format!("https://api.github.com/repos/{owner}/{repo}/releases/tags/{tag}"),
+        None => format!("https://api.github.com/repos/{owner}/{repo}/releases/latest"),
+    };
+    let response = client
+        .get(url)
+        .header(USER_AGENT, "odin-cli")
+        .header(ACCEPT, "application/vnd.github+json")
+        .send()
+        .await?;
+    if response.status().is_success() {
+        Ok(response.json::<GitHubRelease>().await?)
+    } else {
+        let status = response.status();
+        let body = response.text().await.unwrap_or_default();
+        anyhow::bail!("GitHub release lookup failed with {status}: {body}");
     }
 }

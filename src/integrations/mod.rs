@@ -1,5 +1,6 @@
 pub mod git_cli;
 pub mod github;
+pub mod install;
 pub mod package_managers;
 pub mod powershell;
 pub mod process;

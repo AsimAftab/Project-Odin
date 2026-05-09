@@ -24,6 +24,7 @@ async fn main() -> Result<()> {
         Commands::Snapshot(args) => commands::snapshot::run(ctx, args).await,
         Commands::Restore(args) => commands::restore::run(ctx, args).await,
         Commands::Sync(args) => commands::sync::run(ctx, args).await,
+        Commands::Update(args) => commands::update::run(ctx, args).await,
         Commands::Doctor(args) => commands::doctor::run(ctx, args).await,
         Commands::Diff(args) => commands::diff::run(ctx, args).await,
         Commands::Export(args) => commands::export::run(ctx, args).await,
