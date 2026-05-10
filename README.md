@@ -153,15 +153,19 @@ odin config show
 
 `odin dashboard` opens a Ratatui terminal dashboard when running in an interactive terminal. It shows snapshot metadata, developer tools, package managers, GitHub sync state, and health indicators. Press `q` or `Esc` to quit.
 
-## Install Locally
+## Install
+
+### winget (recommended)
 
 ```powershell
-cargo build --release
-.\scripts\install.ps1 -LocalBinary .\target\release\odin.exe -Force
-odin --help
+winget install AsimAftab.Odin
 ```
 
-Global install from GitHub Releases:
+`odin` is on PATH immediately, no SmartScreen warning, automatic updates via `winget upgrade`, and clean uninstall via `winget uninstall AsimAftab.Odin`. The workspace at `%USERPROFILE%\.odin` is created automatically on first use; run `odin init` only if you want the interactive setup with PATH validation and dependency checks.
+
+### PowerShell (CI/automation)
+
+Bootstrap from GitHub Releases:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\bootstrap.ps1 -Repository OWNER/REPO -Scope User
@@ -173,10 +177,26 @@ System-wide install (admin shell):
 .\scripts\install.ps1 -Scope Machine -Repository OWNER/REPO
 ```
 
-Uninstall:
+Uninstall via script:
 
 ```powershell
 .\scripts\uninstall.ps1 -Scope User
+```
+
+### Build from source
+
+```powershell
+cargo build --release
+.\scripts\install.ps1 -LocalBinary .\target\release\odin.exe -Force
+odin --help
+```
+
+To build the MSI locally (requires the [WiX Toolset 3.x](https://wixtoolset.org/docs/wix3/) installed):
+
+```powershell
+cargo install cargo-wix --locked
+cargo wix --nocapture
+# MSI lands in target\wix\odin-<version>-x86_64.msi
 ```
 
 ## Release Automation
@@ -184,7 +204,8 @@ Uninstall:
 GitHub Actions workflows are included:
 
 - `.github/workflows/ci.yml` runs format checks, clippy, tests, and release build.
-- `.github/workflows/release.yml` builds `odin.exe`, packages it, creates a GitHub Release, and uploads:
+- `.github/workflows/release.yml` builds `odin.exe` and the MSI installer, creates a GitHub Release, and uploads:
+  - `odin-<version>-x86_64.msi` (MSI installer)
   - `odin.exe`
   - `odin-windows-x64.zip`
   - `install.ps1`, `uninstall.ps1`, `bootstrap.ps1`

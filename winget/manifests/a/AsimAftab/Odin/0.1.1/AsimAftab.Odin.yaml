@@ -1,0 +1,10 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.version.1.6.0.schema.json
+# Mirrors the layout under microsoft/winget-pkgs/manifests/a/AsimAftab/Odin/0.1.1/.
+# For first-time submission run:  wingetcreate new https://github.com/AsimAftab/Project-Odin/releases/download/v0.1.1/odin-0.1.1-x86_64.msi
+# Subsequent releases are auto-published by .github/workflows/winget.yml.
+
+PackageIdentifier: AsimAftab.Odin
+PackageVersion: 0.1.1
+DefaultLocale: en-US
+ManifestType: version
+ManifestVersion: 1.6.0

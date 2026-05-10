@@ -1,0 +1,29 @@
+name: Publish to winget
+
+# Auto-submits a manifest update PR to microsoft/winget-pkgs whenever a GitHub
+# Release is published. The very first submission (creating AsimAftab.Odin in
+# winget-pkgs) must be done manually with `wingetcreate new` against the v0.1.1
+# release URL — the action only handles updates to existing packages.
+#
+# Required setup (one-time):
+#   1. Fork https://github.com/microsoft/winget-pkgs to your GitHub account
+#   2. Create a classic PAT with `public_repo` scope (or fine-grained PAT with
+#      contents:write on the winget-pkgs fork)
+#   3. Add it as a repository secret named WINGET_TOKEN
+
+on:
+  release:
+    types: [released]
+  workflow_dispatch:
+
+jobs:
+  publish:
+    name: Publish manifest update
+    runs-on: windows-latest
+    steps:
+      - name: Submit to winget-pkgs
+        uses: vedantmgoyal2009/winget-releaser@v2
+        with:
+          identifier: AsimAftab.Odin
+          installers-regex: '^odin-.+-x86_64\.msi$'
+          token: ${{ secrets.WINGET_TOKEN }}
