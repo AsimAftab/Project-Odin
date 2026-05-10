@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.6.0.schema.json
 
 PackageIdentifier: AsimAftab.Odin
-PackageVersion: 0.1.1
+PackageVersion: 0.2.0
 InstallerLocale: en-US
 Platform:
   - Windows.Desktop
@@ -13,7 +13,7 @@ Commands:
 ReleaseDate: 2026-05-11
 Installers:
   - Architecture: x64
-    InstallerUrl: https://github.com/AsimAftab/Project-Odin/releases/download/v0.1.1/odin.exe
+    InstallerUrl: https://github.com/AsimAftab/Project-Odin/releases/download/v0.2.0/odin.exe
     InstallerSha256: REPLACE_WITH_SHA256_OF_RELEASED_EXE
 ManifestType: installer
 ManifestVersion: 1.6.0

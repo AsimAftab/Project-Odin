@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.6.0.schema.json
 
 PackageIdentifier: AsimAftab.Odin
-PackageVersion: 0.1.1
+PackageVersion: 0.2.0
 PackageLocale: en-US
 Publisher: Asim Aftab
 PublisherUrl: https://github.com/AsimAftab
@@ -27,7 +27,7 @@ Tags:
   - developer-tools
   - snapshot
   - windows
-ReleaseNotesUrl: https://github.com/AsimAftab/Project-Odin/releases/tag/v0.1.1
+ReleaseNotesUrl: https://github.com/AsimAftab/Project-Odin/releases/tag/v0.2.0
 InstallationNotes: |-
   Odin is now on PATH. Open a new terminal and run any odin command - the
   workspace at %USERPROFILE%\.odin will be created automatically on first use.
