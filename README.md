@@ -12,18 +12,30 @@ odin restore --apply
 
 ## Commands
 
+### Environment & Configuration
 ```text
 odin snapshot   Capture current machine state into ~/.odin
-odin dashboard  Show snapshot status and next commands
 odin restore    Reinstall and restore from the latest snapshot
-odin sync       Commit and push snapshots to a GitHub repository
-odin backup     Alias for `odin sync` (online backup to Git)
-odin update     Check for and install the latest Odin release
-odin doctor     Diagnose broken PATH entries, missing SDKs, and conflicts
 odin diff       Compare the live machine against the last snapshot
 odin export     Generate PowerShell bootstrap and restore scripts
 odin init       Initialize ~/.odin/config.yaml
 odin config     Configure GitHub and show local configuration
+```
+
+### Monitoring & Diagnostics
+```text
+odin dashboard  Show snapshot status and next commands (interactive TUI)
+odin doctor     Diagnose broken PATH entries, missing SDKs, and conflicts
+odin ports      List all listening ports with process information (JSON support)
+odin ps         Interactive process dashboard (htop-style with live metrics)
+odin kill       Kill processes by port or PID with safety checks
+```
+
+### Sync & Updates
+```text
+odin sync       Commit and push snapshots to a GitHub repository
+odin backup     Alias for `odin sync` (online backup to Git)
+odin update     Check for and install the latest Odin release
 ```
 
 ## Snapshot Output
@@ -159,9 +171,20 @@ cargo run -- update --check
 
 The codebase is organized around command handlers, services, typed models, utility code, and Windows-specific integrations so Linux/macOS support and future plugin/Sentinel AI integrations can be added behind stable service interfaces.
 
+## Key Features
+
+✨ **Real-time Process Monitoring**: Interactive process dashboard with sorting, filtering, and resource monitoring
+🔌 **Port Management**: List listening ports, identify processes, and kill them safely
+⚡ **Auto-Update**: Check and install latest releases from GitHub with one command
+💾 **Snapshot & Restore**: Capture and restore complete developer environment
+🔄 **GitHub Sync**: Backup configuration to private GitHub repositories
+🏥 **Diagnostics**: Health checks for PATH, SDKs, package managers, and VS Code
+🎨 **Beautiful CLI**: Colorful ASCII art banner with command guidance
+
 ## Docs
 
-- [Usage](docs/usage.md)
-- [Architecture](docs/architecture.md)
-- [GitHub Sync](docs/github.md)
-- [Release Process](docs/release.md)
+- [Features Guide](docs/features.md) - Complete feature documentation with examples
+- [Usage](docs/usage.md) - Common workflows and commands
+- [Architecture](docs/architecture.md) - Code organization and design
+- [GitHub Sync](docs/github.md) - Private repository backup setup
+- [Release Process](docs/release.md) - Building and publishing releases
