@@ -1,5 +1,5 @@
+use anyhow::Result;
 use crate::core::context::AppContext;
-use crate::core::errors::Result;
 use crate::services::history_service::HistoryService;
 use chrono::{DateTime, Utc};
 use colored::Colorize;
@@ -15,8 +15,8 @@ pub struct HistoryArgs {
     pub json: bool,
 }
 
-pub async fn handle(ctx: &AppContext, args: HistoryArgs) -> Result<()> {
-    let service = HistoryService::new(&ctx.odin_dir);
+pub async fn run(ctx: AppContext, args: HistoryArgs) -> Result<()> {
+    let service = HistoryService::new(ctx.odin_dir().clone());
     let history = service.get_history()?;
 
     if history.is_empty() {
@@ -25,8 +25,7 @@ pub async fn handle(ctx: &AppContext, args: HistoryArgs) -> Result<()> {
     }
 
     if args.json {
-        let json = serde_json::to_string_pretty(&history)
-            .map_err(|e| crate::core::errors::AppError::JsonError(e.to_string()))?;
+        let json = serde_json::to_string_pretty(&history)?;
         println!("{}", json);
         return Ok(());
     }

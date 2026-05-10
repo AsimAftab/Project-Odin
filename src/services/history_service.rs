@@ -1,4 +1,4 @@
-use crate::core::errors::{AppError, Result};
+use anyhow::Result;
 use crate::models::history::*;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -15,7 +15,6 @@ impl HistoryService {
         }
     }
 
-    /// Get all history entries sorted by date (newest first)
     pub fn get_history(&self) -> Result<Vec<HistoryEntry>> {
         let history_file = self.odin_dir.join(".history");
         
@@ -23,11 +22,9 @@ impl HistoryService {
             return Ok(Vec::new());
         }
 
-        let content = fs::read_to_string(&history_file)
-            .map_err(|e| AppError::IoError(e.to_string()))?;
+        let content = fs::read_to_string(&history_file)?;
         
-        let index: HistoryIndex = serde_json::from_str(&content)
-            .map_err(|e| AppError::JsonError(e.to_string()))?;
+        let index: HistoryIndex = serde_json::from_str(&content)?;
 
         // Convert snapshots to history entries with changes
         let mut entries = Vec::new();
@@ -50,19 +47,16 @@ impl HistoryService {
         Ok(entries)
     }
 
-    /// Get detailed diff between two snapshots
     pub fn compare_snapshots(&self, from_id: &str, to_id: &str) -> Result<SnapshotDiff> {
         let history_file = self.odin_dir.join(".history");
         
         if !history_file.exists() {
-            return Err(AppError::NotFound("No history found".to_string()));
+            return Err(anyhow::anyhow!("No history found"));
         }
 
-        let content = fs::read_to_string(&history_file)
-            .map_err(|e| AppError::IoError(e.to_string()))?;
+        let content = fs::read_to_string(&history_file)?;
         
-        let index: HistoryIndex = serde_json::from_str(&content)
-            .map_err(|e| AppError::JsonError(e.to_string()))?;
+        let index: HistoryIndex = serde_json::from_str(&content)?;
 
         // Check if diff is cached
         if let Some(cached_diff) = index.get_diff(from_id, to_id) {
@@ -81,36 +75,29 @@ impl HistoryService {
         })
     }
 
-    /// Get changes in a single snapshot compared to the previous one
     pub fn get_snapshot_changes(&self, snapshot_id: &str, previous_id: &str) -> Result<Vec<EnvironmentChange>> {
         self.compute_diff(previous_id, snapshot_id)
     }
 
-    /// Register a new snapshot in history
     pub fn register_snapshot(&self, metadata: SnapshotMetadata) -> Result<()> {
         let history_file = self.odin_dir.join(".history");
 
         let mut index = if history_file.exists() {
-            let content = fs::read_to_string(&history_file)
-                .map_err(|e| AppError::IoError(e.to_string()))?;
-            serde_json::from_str(&content)
-                .map_err(|e| AppError::JsonError(e.to_string()))?
+            let content = fs::read_to_string(&history_file)?;
+            serde_json::from_str(&content)?
         } else {
             HistoryIndex::new()
         };
 
         index.add_snapshot(metadata);
 
-        let content = serde_json::to_string_pretty(&index)
-            .map_err(|e| AppError::JsonError(e.to_string()))?;
+        let content = serde_json::to_string_pretty(&index)?;
 
-        fs::write(&history_file, content)
-            .map_err(|e| AppError::IoError(e.to_string()))?;
+        fs::write(&history_file, content)?;
 
         Ok(())
     }
 
-    /// Clean up old snapshots keeping last N snapshots
     pub fn cleanup_old_snapshots(&self, keep_count: usize) -> Result<u32> {
         let history_file = self.odin_dir.join(".history");
         
@@ -118,11 +105,9 @@ impl HistoryService {
             return Ok(0);
         }
 
-        let content = fs::read_to_string(&history_file)
-            .map_err(|e| AppError::IoError(e.to_string()))?;
+        let content = fs::read_to_string(&history_file)?;
         
-        let mut index: HistoryIndex = serde_json::from_str(&content)
-            .map_err(|e| AppError::JsonError(e.to_string()))?;
+        let mut index: HistoryIndex = serde_json::from_str(&content)?;
 
         let original_count = index.snapshots.len();
         
@@ -131,11 +116,9 @@ impl HistoryService {
             let to_remove = original_count - keep_count;
             index.snapshots.truncate(keep_count);
 
-            let content = serde_json::to_string_pretty(&index)
-                .map_err(|e| AppError::JsonError(e.to_string()))?;
+            let content = serde_json::to_string_pretty(&index)?;
 
-            fs::write(&history_file, content)
-                .map_err(|e| AppError::IoError(e.to_string()))?;
+            fs::write(&history_file, content)?;
 
             Ok(to_remove as u32)
         } else {
@@ -143,26 +126,23 @@ impl HistoryService {
         }
     }
 
-    /// Compute diff between two snapshots by reading their JSON files
     fn compute_diff(&self, from_id: &str, to_id: &str) -> Result<Vec<EnvironmentChange>> {
         let from_file = self.odin_dir.join(format!("snapshot-{}.json", from_id));
         let to_file = self.odin_dir.join(format!("snapshot-{}.json", to_id));
 
         if !from_file.exists() || !to_file.exists() {
-            return Err(AppError::NotFound(
-                format!("Snapshot files not found: {} or {}", from_id, to_id),
+            return Err(anyhow::anyhow!(
+                "Snapshot files not found: {} or {}",
+                from_id,
+                to_id
             ));
         }
 
-        let from_content = fs::read_to_string(&from_file)
-            .map_err(|e| AppError::IoError(e.to_string()))?;
-        let to_content = fs::read_to_string(&to_file)
-            .map_err(|e| AppError::IoError(e.to_string()))?;
+        let from_content = fs::read_to_string(&from_file)?;
+        let to_content = fs::read_to_string(&to_file)?;
 
-        let from_snapshot: serde_json::Value = serde_json::from_str(&from_content)
-            .map_err(|e| AppError::JsonError(e.to_string()))?;
-        let to_snapshot: serde_json::Value = serde_json::from_str(&to_content)
-            .map_err(|e| AppError::JsonError(e.to_string()))?;
+        let from_snapshot: serde_json::Value = serde_json::from_str(&from_content)?;
+        let to_snapshot: serde_json::Value = serde_json::from_str(&to_content)?;
 
         let mut changes = Vec::new();
 
@@ -188,14 +168,15 @@ impl HistoryService {
     ) -> Result<Vec<EnvironmentChange>> {
         let mut changes = Vec::new();
 
+        let empty_vec = vec![];
         let from_packages = from
             .get("packages")
             .and_then(|p| p.as_array())
-            .unwrap_or(&vec![]);
+            .unwrap_or(&empty_vec);
         let to_packages = to
             .get("packages")
             .and_then(|p| p.as_array())
-            .unwrap_or(&vec![]);
+            .unwrap_or(&empty_vec);
 
         // Find removed and updated packages
         for from_pkg in from_packages {
@@ -265,14 +246,15 @@ impl HistoryService {
     ) -> Result<Vec<EnvironmentChange>> {
         let mut changes = Vec::new();
 
+        let empty_map = Default::default();
         let from_env = from
             .get("environment")
             .and_then(|e| e.as_object())
-            .unwrap_or(&Default::default());
+            .unwrap_or(&empty_map);
         let to_env = to
             .get("environment")
             .and_then(|e| e.as_object())
-            .unwrap_or(&Default::default());
+            .unwrap_or(&empty_map);
 
         // Check for removed or changed env vars
         for (key, from_val) in from_env {
@@ -328,14 +310,15 @@ impl HistoryService {
     ) -> Result<Vec<EnvironmentChange>> {
         let mut changes = Vec::new();
 
+        let empty_vec = vec![];
         let from_exts = from
             .get("vscode_extensions")
             .and_then(|e| e.as_array())
-            .unwrap_or(&vec![]);
+            .unwrap_or(&empty_vec);
         let to_exts = to
             .get("vscode_extensions")
             .and_then(|e| e.as_array())
-            .unwrap_or(&vec![]);
+            .unwrap_or(&empty_vec);
 
         // Find removed extensions
         for from_ext in from_exts {
@@ -383,14 +366,15 @@ impl HistoryService {
     ) -> Result<Vec<EnvironmentChange>> {
         let mut changes = Vec::new();
 
+        let empty_map = Default::default();
         let from_config = from
             .get("git_config")
             .and_then(|g| g.as_object())
-            .unwrap_or(&Default::default());
+            .unwrap_or(&empty_map);
         let to_config = to
             .get("git_config")
             .and_then(|g| g.as_object())
-            .unwrap_or(&Default::default());
+            .unwrap_or(&empty_map);
 
         // Check for git config changes
         for (key, from_val) in from_config {

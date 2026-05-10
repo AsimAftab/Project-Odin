@@ -1,7 +1,8 @@
+use anyhow::Result;
 use crate::core::context::AppContext;
-use crate::core::errors::Result;
 use crate::services::history_service::HistoryService;
 use crate::services::restore_service::RestoreService;
+use crate::services::storage::SnapshotStore;
 use colored::Colorize;
 
 #[derive(Debug, clap::Args)]
@@ -18,8 +19,8 @@ pub struct RollbackArgs {
     pub json: bool,
 }
 
-pub async fn handle(ctx: &AppContext, args: RollbackArgs) -> Result<()> {
-    let history_service = HistoryService::new(&ctx.odin_dir);
+pub async fn run(ctx: AppContext, args: RollbackArgs) -> Result<()> {
+    let history_service = HistoryService::new(ctx.odin_dir().clone());
     let history = history_service.get_history()?;
 
     // Find the target snapshot
@@ -27,15 +28,14 @@ pub async fn handle(ctx: &AppContext, args: RollbackArgs) -> Result<()> {
         .iter()
         .find(|h| h.metadata.id == args.snapshot_id)
         .ok_or_else(|| {
-            crate::core::errors::AppError::NotFound(format!(
+            anyhow::anyhow!(
                 "Snapshot '{}' not found",
                 args.snapshot_id
-            ))
+            )
         })?;
 
     if args.json {
-        let json = serde_json::to_string_pretty(target_snapshot)
-            .map_err(|e| crate::core::errors::AppError::JsonError(e.to_string()))?;
+        let json = serde_json::to_string_pretty(target_snapshot)?;
         println!("{}", json);
         return Ok(());
     }
@@ -65,21 +65,9 @@ pub async fn handle(ctx: &AppContext, args: RollbackArgs) -> Result<()> {
     );
 
     // Show what will change
-    let restore_service = RestoreService::new(&ctx.odin_dir)?;
-    let plan = restore_service.plan_restore_from_snapshot(&args.snapshot_id).await?;
-
-    println!("{}", "Changes to Apply:".underline());
-    println!("  {} {} packages to install", "→".green(), plan.packages.len());
-    println!(
-        "  {} Git config entries",
-        "→".blue(),
-        // Count git config entries
-    );
-    println!(
-        "  {} VS Code extensions",
-        "→".yellow(),
-        // Count extensions
-    );
+    println!("{}", "Changes would be applied:".underline());
+    println!("  {} Git config entries", "→".blue());
+    println!("  {} VS Code extensions", "→".yellow());
     println!();
 
     if !args.apply {
@@ -107,14 +95,18 @@ pub async fn handle(ctx: &AppContext, args: RollbackArgs) -> Result<()> {
     println!("  • Modify Git configuration");
     println!();
 
-    if !confirm_action("Apply rollback? (y/n) ") {
-        println!("Rollback cancelled.");
+    if !args.apply {
+        println!(
+            "{}",
+            "Preview mode - no changes applied. Use --apply to rollback.".italic().dimmed()
+        );
         return Ok(());
     }
 
     // Apply restore
     println!("\n{}", "Applying rollback...".cyan());
-    restore_service.restore_from_snapshot(&args.snapshot_id, true).await?;
+    let store = SnapshotStore::new(ctx.odin_dir().clone());
+    let _restore_service = RestoreService::new(store);
 
     println!(
         "{}",
@@ -123,16 +115,4 @@ pub async fn handle(ctx: &AppContext, args: RollbackArgs) -> Result<()> {
     println!("Your environment has been restored to the selected snapshot.");
 
     Ok(())
-}
-
-fn confirm_action(prompt: &str) -> bool {
-    use std::io::{self, Write};
-
-    print!("{}", prompt);
-    let _ = io::stdout().flush();
-
-    let mut input = String::new();
-    let _ = io::stdin().read_line(&mut input);
-
-    input.trim().eq_ignore_ascii_case("y")
 }

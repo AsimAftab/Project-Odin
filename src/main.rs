@@ -31,8 +31,8 @@ async fn main() -> Result<()> {
         Some(Commands::Ports(args)) => commands::ports::run(ctx, args).await,
         Some(Commands::Kill(args)) => commands::kill::run(ctx, args).await,
         Some(Commands::Ps(args)) => commands::ps::run(ctx, args).await,
-        Some(Commands::History(args)) => commands::history::handle(&ctx, args).await,
-        Some(Commands::Rollback(args)) => commands::rollback::handle(&ctx, args).await,
+        Some(Commands::History(args)) => commands::history::run(ctx, args).await,
+        Some(Commands::Rollback(args)) => commands::rollback::run(ctx, args).await,
         None => {
             utils::banner::print_banner();
             Ok(())
