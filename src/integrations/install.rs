@@ -126,3 +126,32 @@ async fn read_registry_path(key: &str) -> Result<String> {
     }
     Ok(String::new())
 }
+
+pub async fn add_to_user_path(dir: &Path) -> Result<()> {
+    let dir_str = dir.to_string_lossy();
+    let script = format!(
+        r#"
+$dir = '{}'
+$oldPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+$entries = $oldPath.Split(';') | ForEach-Object {{ $_.Trim() }} | Where-Object {{ $_ -ne '' }}
+if ($entries -notcontains $dir) {{
+    $newPath = ($entries + $dir) -join ';'
+    [Environment]::SetEnvironmentVariable('Path', $newPath, 'User')
+    
+    # Broadcast change
+    $signature = @'
+[DllImport("user32.dll", SetLastError=true, CharSet=CharSet.Auto)]
+public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, UIntPtr wParam, string lParam, uint fuFlags, uint uTimeout, out UIntPtr lpdwResult);
+'@
+    $type = Add-Type -MemberDefinition $signature -Name "Win32Environment" -Namespace "Odin.Internal" -PassThru
+    $result = [UIntPtr]::Zero
+    $type::SendMessageTimeout([IntPtr]0xffff, 0x1A, [UIntPtr]::Zero, "Environment", 2, 5000, [ref]$result) | Out-Null
+}}
+"#,
+        dir_str
+    );
+
+    let pwsh = super::powershell::executable().context("PowerShell is required to update PATH")?;
+    process::checked(&pwsh, &["-NoProfile", "-Command", &script]).await?;
+    Ok(())
+}

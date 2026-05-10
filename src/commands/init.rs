@@ -1,5 +1,6 @@
 use anyhow::Result;
 use colored::Colorize;
+use dialoguer::Confirm;
 
 use crate::cli::InitArgs;
 use crate::core::context::AppContext;
@@ -34,20 +35,55 @@ pub async fn run(ctx: AppContext, args: InitArgs) -> Result<()> {
     if !process::command_exists("odin") {
         warnings.push("odin command is not available on current PATH".to_string());
     }
+
     if !install_status.process_has_current_directory {
-        warnings.push(format!(
+        let msg = format!(
             "current executable directory is missing from PATH: {}",
             install_status.current_directory.display()
-        ));
+        );
+        warnings.push(msg.clone());
+
+        println!("{} {}", "suggestion".yellow(), msg);
+        if Confirm::new()
+            .with_prompt(
+                "Would you like to add the current executable directory to your User PATH?",
+            )
+            .default(true)
+            .interact()?
+        {
+            install::add_to_user_path(&install_status.current_directory).await?;
+            println!(
+                "{} added to User PATH. Restart your terminal to apply changes.",
+                "ok".green()
+            );
+        }
     }
+
     if !install_status.user_path_has_user_install_dir
         && !install_status.machine_path_has_machine_install_dir
     {
-        warnings.push(format!(
+        let msg = format!(
             "persistent PATH is missing default Odin install dirs: {} or {}",
             install_status.user_install_dir.display(),
             install_status.machine_install_dir.display()
-        ));
+        );
+        warnings.push(msg.clone());
+
+        println!("{} {}", "suggestion".yellow(), msg);
+        if Confirm::new()
+            .with_prompt(format!(
+                "Would you like to add the default Odin install directory to your User PATH? ({})",
+                install_status.user_install_dir.display()
+            ))
+            .default(true)
+            .interact()?
+        {
+            install::add_to_user_path(&install_status.user_install_dir).await?;
+            println!(
+                "{} added to User PATH. Restart your terminal to apply changes.",
+                "ok".green()
+            );
+        }
     }
 
     println!("{} checking dependencies", "step".cyan());
