@@ -9,9 +9,10 @@ Comprehensive reference for all Odin commands and capabilities.
 3. [Diagnostics](#diagnostics)
 4. [Sync & Backup](#sync--backup)
 5. [Updates](#updates)
-6. [Configuration](#configuration)
-7. [Dashboard](#dashboard)
-8. [Command Reference](#command-reference)
+6. [Time Machine & History](#time-machine--history-phase-2)
+7. [Configuration](#configuration)
+8. [Dashboard](#dashboard)
+9. [Command Reference](#command-reference)
 
 ---
 
@@ -559,6 +560,123 @@ odin update
 check_updates: true
 update_channel: "stable"  # or "beta"
 ```
+
+---
+
+## Time Machine & History (Phase 2)
+
+### `odin history`
+
+View the history of environment snapshots with a colored timeline.
+
+**Features:**
+- **Timeline view**: Chronological list of all snapshots
+- **Change tracking**: See what changed between snapshots
+- **Detailed diffs**: Environment variables, packages, extensions, Git config
+- **Time indicators**: Relative timestamps (e.g., "2 days ago")
+- **JSON export**: Export history data for analysis
+
+**What it tracks:**
+- Added/removed packages
+- Changed environment variables
+- Added/removed VS Code extensions
+- Git configuration changes
+
+**Usage:**
+```powershell
+# View snapshot history
+odin history
+
+# Show detailed changes between snapshots
+odin history --detailed
+
+# Export as JSON
+odin history --json
+```
+
+**Example output:**
+```
+📜 Snapshot History (newest first)
+════════════════════════════════════════════════════════════════
+
+📦 Snapshot: snapshot-20250313-120000
+   ↳ 2 hours ago on WORKSTATION-01
+   Changes:
+   ✓ 3 packages added (node 20.11, eslint 8.55, prettier 3.2)
+   ~ 1 package updated (git 2.44 → 2.45)
+   ✗ 2 packages removed (legacy-tool, deprecated-pkg)
+   ↔ 4 environment variables changed
+   ⚙ 2 VS Code extensions installed
+
+📦 Snapshot: snapshot-20250312-090000
+   ↳ 1 day ago on WORKSTATION-01
+   Changes:
+   ✓ 5 packages added (python 3.12, nodejs 20, rust 1.75)
+   ↔ 3 environment variables changed
+
+📦 Snapshot: snapshot-20250311-150000
+   ↳ 2 days ago on WORKSTATION-01
+   (initial snapshot)
+```
+
+---
+
+### `odin rollback`
+
+Restore environment to a previous snapshot.
+
+**Features:**
+- **Dry-run by default**: Preview changes before applying
+- **Full restoration**: Packages, environment variables, extensions, Git config
+- **Safety first**: Requires `--apply` flag to confirm
+- **Selective rollback**: Can rollback to any snapshot in history
+- **Change preview**: Shows what will be restored
+
+**Important:**
+- Does NOT uninstall packages added after the snapshot
+- Only restores configuration and missing packages
+- Git config restored only for global settings
+
+**Usage:**
+```powershell
+# Preview rollback (dry-run)
+odin rollback snapshot-20250312-090000
+
+# Apply rollback with confirmation
+odin rollback snapshot-20250312-090000 --apply
+
+# Show as JSON
+odin rollback snapshot-20250312-090000 --json
+```
+
+**Workflow example:**
+```powershell
+# 1. Check history
+odin history
+
+# 2. Preview rollback (no changes made)
+odin rollback snapshot-20250312-090000
+# Output:
+# 🔙 Rollback Preview
+# Rolling back to: snapshot-20250312-090000 (2 days ago)
+# 
+# Changes to Apply:
+#   → 5 packages to install
+#   → 3 environment variables to restore
+#   → 2 VS Code extensions to install
+#   → Git config entries to restore
+# 
+# Preview mode - no changes applied. Use --apply to rollback.
+
+# 3. Apply rollback
+odin rollback snapshot-20250312-090000 --apply
+```
+
+**Use cases:**
+- Quick recovery from environment issues
+- Testing different tool configurations
+- Comparing machine state over time
+- Auditing what changed between versions
 
 ---
 
