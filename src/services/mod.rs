@@ -2,6 +2,7 @@ pub mod config_service;
 pub mod diff_service;
 pub mod doctor_service;
 pub mod export_service;
+pub mod process_service;
 pub mod restore_service;
 pub mod secret_service;
 pub mod snapshot_service;

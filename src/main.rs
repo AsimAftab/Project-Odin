@@ -28,5 +28,8 @@ async fn main() -> Result<()> {
         Commands::Doctor(args) => commands::doctor::run(ctx, args).await,
         Commands::Diff(args) => commands::diff::run(ctx, args).await,
         Commands::Export(args) => commands::export::run(ctx, args).await,
+        Commands::Ports(args) => commands::ports::run(ctx, args).await,
+        Commands::Kill(args) => commands::kill::run(ctx, args).await,
+        Commands::Ps(args) => commands::ps::run(ctx, args).await,
     }
 }

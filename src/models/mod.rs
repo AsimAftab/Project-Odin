@@ -5,5 +5,6 @@ pub mod environment;
 pub mod git;
 pub mod machine;
 pub mod package;
+pub mod process;
 pub mod snapshot;
 pub mod vscode;

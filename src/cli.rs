@@ -29,6 +29,9 @@ pub enum Commands {
     Doctor(DoctorArgs),
     Diff(DiffArgs),
     Export(ExportArgs),
+    Ports(PortsArgs),
+    Kill(KillArgs),
+    Ps(PsArgs),
 }
 
 #[derive(Debug, Args)]
@@ -151,3 +154,21 @@ pub struct ExportArgs {
     #[arg(long)]
     pub force: bool,
 }
+
+#[derive(Debug, Args)]
+pub struct PortsArgs {
+    #[arg(long, help = "Output as JSON")]
+    pub json: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct KillArgs {
+    #[arg(value_name = "PORT|PID", help = "Port number or process ID to kill")]
+    pub target: String,
+
+    #[arg(long, help = "Force kill process without confirmation")]
+    pub force: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct PsArgs {}
