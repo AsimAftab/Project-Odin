@@ -3,11 +3,14 @@ pub mod dashboard;
 pub mod diff;
 pub mod doctor;
 pub mod export;
+pub mod history;
 pub mod init;
 pub mod kill;
 pub mod ports;
 pub mod ps;
 pub mod restore;
+pub mod rollback;
 pub mod snapshot;
 pub mod sync;
 pub mod update;
+

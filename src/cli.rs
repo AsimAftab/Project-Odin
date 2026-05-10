@@ -32,6 +32,8 @@ pub enum Commands {
     Ports(PortsArgs),
     Kill(KillArgs),
     Ps(PsArgs),
+    History(crate::commands::history::HistoryArgs),
+    Rollback(crate::commands::rollback::RollbackArgs),
 }
 
 #[derive(Debug, Args)]
