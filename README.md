@@ -31,6 +31,12 @@ odin ps         Interactive process dashboard (htop-style with live metrics)
 odin kill       Kill processes by port or PID with safety checks
 ```
 
+### Time Machine & History
+```text
+odin history    View snapshot history with colored timeline
+odin rollback   Restore environment to a previous snapshot
+```
+
 ### Sync & Updates
 ```text
 odin sync       Commit and push snapshots to a GitHub repository
@@ -95,6 +101,30 @@ Odin can also create a private GitHub repository through the GitHub API:
 $env:GITHUB_TOKEN = "ghp_..."
 odin sync --create-private-repo --github-repo odin-state
 ```
+
+## Time Machine (Phase 2)
+
+Odin tracks all snapshots and enables rolling back to previous states:
+
+```powershell
+# View the history of snapshots
+odin history
+
+# View detailed changes between snapshots
+odin history --detailed
+
+# Rollback to a previous snapshot (dry-run by default)
+odin rollback snapshot-20250313-120000
+
+# Apply the rollback
+odin rollback snapshot-20250313-120000 --apply
+```
+
+This enables powerful workflows like:
+- Quickly reverting environment changes
+- Comparing machine state across time periods
+- Auditing which packages were added/removed
+- Testing environment configurations before applying
 
 ## Windows Integrations
 
