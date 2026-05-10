@@ -13,7 +13,7 @@ pub struct Cli {
     pub odin_dir: Option<PathBuf>,
 
     #[command(subcommand)]
-    pub command: Commands,
+    pub command: Option<Commands>,
 }
 
 #[derive(Debug, Subcommand)]

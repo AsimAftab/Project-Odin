@@ -18,18 +18,22 @@ async fn main() -> Result<()> {
     let ctx = core::context::AppContext::new(cli.odin_dir)?;
 
     match cli.command {
-        Commands::Dashboard(args) => commands::dashboard::run(ctx, args).await,
-        Commands::Init(args) => commands::init::run(ctx, args).await,
-        Commands::Config(args) => commands::config::run(ctx, args).await,
-        Commands::Snapshot(args) => commands::snapshot::run(ctx, args).await,
-        Commands::Restore(args) => commands::restore::run(ctx, args).await,
-        Commands::Sync(args) => commands::sync::run(ctx, args).await,
-        Commands::Update(args) => commands::update::run(ctx, args).await,
-        Commands::Doctor(args) => commands::doctor::run(ctx, args).await,
-        Commands::Diff(args) => commands::diff::run(ctx, args).await,
-        Commands::Export(args) => commands::export::run(ctx, args).await,
-        Commands::Ports(args) => commands::ports::run(ctx, args).await,
-        Commands::Kill(args) => commands::kill::run(ctx, args).await,
-        Commands::Ps(args) => commands::ps::run(ctx, args).await,
+        Some(Commands::Dashboard(args)) => commands::dashboard::run(ctx, args).await,
+        Some(Commands::Init(args)) => commands::init::run(ctx, args).await,
+        Some(Commands::Config(args)) => commands::config::run(ctx, args).await,
+        Some(Commands::Snapshot(args)) => commands::snapshot::run(ctx, args).await,
+        Some(Commands::Restore(args)) => commands::restore::run(ctx, args).await,
+        Some(Commands::Sync(args)) => commands::sync::run(ctx, args).await,
+        Some(Commands::Update(args)) => commands::update::run(ctx, args).await,
+        Some(Commands::Doctor(args)) => commands::doctor::run(ctx, args).await,
+        Some(Commands::Diff(args)) => commands::diff::run(ctx, args).await,
+        Some(Commands::Export(args)) => commands::export::run(ctx, args).await,
+        Some(Commands::Ports(args)) => commands::ports::run(ctx, args).await,
+        Some(Commands::Kill(args)) => commands::kill::run(ctx, args).await,
+        Some(Commands::Ps(args)) => commands::ps::run(ctx, args).await,
+        None => {
+            utils::banner::print_banner();
+            Ok(())
+        }
     }
 }
