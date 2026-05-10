@@ -14,8 +14,7 @@ pub async fn run(_ctx: crate::core::context::AppContext, args: KillArgs) -> Resu
         let port: u16 = target.parse()?;
         println!(
             "{}",
-            format!("🔍 Looking for process on port {}...", port)
-                .cyan()
+            format!("🔍 Looking for process on port {}...", port).cyan()
         );
         ProcessService::find_process_by_port(port).await?
     } else {

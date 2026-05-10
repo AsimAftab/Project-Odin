@@ -9,7 +9,7 @@ use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Paragraph, Table, Row},
+    widgets::{Block, Borders, Paragraph, Row, Table},
     Terminal,
 };
 use std::io::Stdout;
@@ -34,10 +34,7 @@ pub async fn run() -> Result<()> {
 
     // Restore terminal
     disable_raw_mode()?;
-    execute!(
-        terminal.backend_mut(),
-        LeaveAlternateScreen
-    )?;
+    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
     terminal.show_cursor()?;
 
     res
@@ -80,7 +77,9 @@ impl App {
         let filtered: Vec<ProcessInfo> = processes
             .into_iter()
             .filter(|p| {
-                p.name.to_lowercase().contains(self.filter.to_lowercase().as_str())
+                p.name
+                    .to_lowercase()
+                    .contains(self.filter.to_lowercase().as_str())
             })
             .collect();
 
@@ -90,10 +89,14 @@ impl App {
             SortColumn::PID => sorted.sort_by_key(|p| p.pid),
             SortColumn::Name => sorted.sort_by(|a, b| a.name.cmp(&b.name)),
             SortColumn::Memory => sorted.sort_by(|a, b| {
-                b.memory_mb.partial_cmp(&a.memory_mb).unwrap_or(std::cmp::Ordering::Equal)
+                b.memory_mb
+                    .partial_cmp(&a.memory_mb)
+                    .unwrap_or(std::cmp::Ordering::Equal)
             }),
             SortColumn::CPU => sorted.sort_by(|a, b| {
-                b.cpu_percent.partial_cmp(&a.cpu_percent).unwrap_or(std::cmp::Ordering::Equal)
+                b.cpu_percent
+                    .partial_cmp(&a.cpu_percent)
+                    .unwrap_or(std::cmp::Ordering::Equal)
             }),
         }
 
@@ -112,10 +115,7 @@ impl App {
     }
 }
 
-async fn app_loop(
-    terminal: &mut Terminal<CrosstermBackend<Stdout>>,
-    app: &mut App,
-) -> Result<()> {
+async fn app_loop(terminal: &mut Terminal<CrosstermBackend<Stdout>>, app: &mut App) -> Result<()> {
     let tick_rate = Duration::from_millis(500);
     let mut last_tick = std::time::Instant::now();
 
@@ -176,15 +176,18 @@ fn ui(f: &mut ratatui::Frame, app: &App) {
 
     // Header
     let header_text = vec![
-        Line::from(vec![
-            Span::styled("ODIN Process Dashboard", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
-        ]),
-        Line::from(vec![
-            Span::raw(format!("Total Processes: {}", app.total_processes)),
-        ]),
+        Line::from(vec![Span::styled(
+            "ODIN Process Dashboard",
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )]),
+        Line::from(vec![Span::raw(format!(
+            "Total Processes: {}",
+            app.total_processes
+        ))]),
     ];
-    let header = Paragraph::new(header_text)
-        .block(Block::default().borders(Borders::BOTTOM));
+    let header = Paragraph::new(header_text).block(Block::default().borders(Borders::BOTTOM));
     f.render_widget(header, chunks[0]);
 
     // Process table
@@ -219,8 +222,11 @@ fn ui(f: &mut ratatui::Frame, app: &App) {
         ],
     )
     .header(
-        Row::new(vec!["PID", "NAME", "MEMORY", "CPU"])
-            .style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))
+        Row::new(vec!["PID", "NAME", "MEMORY", "CPU"]).style(
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ),
     )
     .block(Block::default().borders(Borders::ALL).title("Processes"));
 

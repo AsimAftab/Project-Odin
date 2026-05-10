@@ -1,6 +1,6 @@
-use anyhow::Result;
 use crate::core::context::AppContext;
 use crate::services::history_service::HistoryService;
+use anyhow::Result;
 use chrono::{DateTime, Utc};
 use colored::Colorize;
 
@@ -31,10 +31,7 @@ pub async fn run(ctx: AppContext, args: HistoryArgs) -> Result<()> {
     }
 
     // Display history in human-readable format
-    println!(
-        "{}",
-        "📚 Snapshot History".bold().cyan()
-    );
+    println!("{}", "📚 Snapshot History".bold().cyan());
     println!("{}\n", "═".repeat(60));
 
     for (idx, entry) in history.iter().enumerate() {
@@ -108,10 +105,7 @@ pub async fn run(ctx: AppContext, args: HistoryArgs) -> Result<()> {
     }
 
     // Show rollback instructions
-    println!(
-        "{}",
-        "Rollback Instructions".underline()
-    );
+    println!("{}", "Rollback Instructions".underline());
     if let Some(entry) = history.first() {
         println!(
             "To restore to any snapshot, use: {}",

@@ -1,5 +1,5 @@
-use anyhow::Result;
 use crate::models::history::*;
+use anyhow::Result;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -17,13 +17,13 @@ impl HistoryService {
 
     pub fn get_history(&self) -> Result<Vec<HistoryEntry>> {
         let history_file = self.odin_dir.join(".history");
-        
+
         if !history_file.exists() {
             return Ok(Vec::new());
         }
 
         let content = fs::read_to_string(&history_file)?;
-        
+
         let index: HistoryIndex = serde_json::from_str(&content)?;
 
         // Convert snapshots to history entries with changes
@@ -49,13 +49,13 @@ impl HistoryService {
 
     pub fn compare_snapshots(&self, from_id: &str, to_id: &str) -> Result<SnapshotDiff> {
         let history_file = self.odin_dir.join(".history");
-        
+
         if !history_file.exists() {
             return Err(anyhow::anyhow!("No history found"));
         }
 
         let content = fs::read_to_string(&history_file)?;
-        
+
         let index: HistoryIndex = serde_json::from_str(&content)?;
 
         // Check if diff is cached
@@ -75,7 +75,11 @@ impl HistoryService {
         })
     }
 
-    pub fn get_snapshot_changes(&self, snapshot_id: &str, previous_id: &str) -> Result<Vec<EnvironmentChange>> {
+    pub fn get_snapshot_changes(
+        &self,
+        snapshot_id: &str,
+        previous_id: &str,
+    ) -> Result<Vec<EnvironmentChange>> {
         self.compute_diff(previous_id, snapshot_id)
     }
 
@@ -100,17 +104,17 @@ impl HistoryService {
 
     pub fn cleanup_old_snapshots(&self, keep_count: usize) -> Result<u32> {
         let history_file = self.odin_dir.join(".history");
-        
+
         if !history_file.exists() {
             return Ok(0);
         }
 
         let content = fs::read_to_string(&history_file)?;
-        
+
         let mut index: HistoryIndex = serde_json::from_str(&content)?;
 
         let original_count = index.snapshots.len();
-        
+
         if original_count > keep_count {
             // Remove oldest snapshots
             let to_remove = original_count - keep_count;
@@ -184,9 +188,9 @@ impl HistoryService {
             let from_version = from_pkg.get("version").and_then(|v| v.as_str());
 
             if let Some(name) = from_name {
-                let found = to_packages.iter().find(|p| {
-                    p.get("name").and_then(|n| n.as_str()) == from_name
-                });
+                let found = to_packages
+                    .iter()
+                    .find(|p| p.get("name").and_then(|n| n.as_str()) == from_name);
 
                 if found.is_none() {
                     changes.push(EnvironmentChange {
@@ -219,9 +223,9 @@ impl HistoryService {
             let to_version = to_pkg.get("version").and_then(|v| v.as_str());
 
             if let Some(name) = to_name {
-                let found = from_packages.iter().find(|p| {
-                    p.get("name").and_then(|n| n.as_str()) == to_name
-                });
+                let found = from_packages
+                    .iter()
+                    .find(|p| p.get("name").and_then(|n| n.as_str()) == to_name);
 
                 if found.is_none() {
                     changes.push(EnvironmentChange {
@@ -325,12 +329,18 @@ impl HistoryService {
             let from_id = from_ext.get("id").and_then(|i| i.as_str());
 
             if let Some(id) = from_id {
-                if !to_exts.iter().any(|e| e.get("id").and_then(|i| i.as_str()) == from_id) {
+                if !to_exts
+                    .iter()
+                    .any(|e| e.get("id").and_then(|i| i.as_str()) == from_id)
+                {
                     changes.push(EnvironmentChange {
                         change_type: ChangeType::Removed,
                         category: "vscode_extension".to_string(),
                         item: id.to_string(),
-                        old_value: from_ext.get("version").and_then(|v| v.as_str()).map(String::from),
+                        old_value: from_ext
+                            .get("version")
+                            .and_then(|v| v.as_str())
+                            .map(String::from),
                         new_value: None,
                         details: None,
                     });
@@ -343,13 +353,19 @@ impl HistoryService {
             let to_id = to_ext.get("id").and_then(|i| i.as_str());
 
             if let Some(id) = to_id {
-                if !from_exts.iter().any(|e| e.get("id").and_then(|i| i.as_str()) == to_id) {
+                if !from_exts
+                    .iter()
+                    .any(|e| e.get("id").and_then(|i| i.as_str()) == to_id)
+                {
                     changes.push(EnvironmentChange {
                         change_type: ChangeType::Added,
                         category: "vscode_extension".to_string(),
                         item: id.to_string(),
                         old_value: None,
-                        new_value: to_ext.get("version").and_then(|v| v.as_str()).map(String::from),
+                        new_value: to_ext
+                            .get("version")
+                            .and_then(|v| v.as_str())
+                            .map(String::from),
                         details: None,
                     });
                 }

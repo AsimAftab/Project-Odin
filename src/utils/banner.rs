@@ -13,8 +13,7 @@ pub fn print_banner() {
     println!("{}", banner.cyan().bold());
     println!(
         "{}",
-        "╔════════════════════════════════════════════════════════════╗"
-            .bright_blue()
+        "╔════════════════════════════════════════════════════════════╗".bright_blue()
     );
     println!(
         "║ {} │",
@@ -22,14 +21,10 @@ pub fn print_banner() {
             .white()
             .bold()
     );
-    println!(
-        "║ {} │",
-        "v0.1.0 — Fast • Secure • Reliable".bright_green()
-    );
+    println!("║ {} │", "v0.1.0 — Fast • Secure • Reliable".bright_green());
     println!(
         "{}",
-        "╚════════════════════════════════════════════════════════════╝"
-            .bright_blue()
+        "╚════════════════════════════════════════════════════════════╝".bright_blue()
     );
     println!();
 
@@ -54,28 +49,28 @@ pub fn print_banner() {
 
     for (cmd, desc) in commands {
         let padded = format!("{:<12}", cmd);
-        println!(
-            "  {} {}",
-            padded.cyan().bold(),
-            desc.white()
-        );
+        println!("  {} {}", padded.cyan().bold(), desc.white());
     }
 
     println!();
     println!("{}", "🚀 Get Started:".yellow().bold());
-    println!("  odin snapshot       {} Create your first snapshot",
-        "→".bright_green());
-    println!("  odin ports          {} See listening ports",
-        "→".bright_green());
-    println!("  odin ps             {} Monitor processes",
-        "→".bright_green());
-    println!("  odin --help         {} More info",
-        "→".bright_green());
+    println!(
+        "  odin snapshot       {} Create your first snapshot",
+        "→".bright_green()
+    );
+    println!(
+        "  odin ports          {} See listening ports",
+        "→".bright_green()
+    );
+    println!(
+        "  odin ps             {} Monitor processes",
+        "→".bright_green()
+    );
+    println!("  odin --help         {} More info", "→".bright_green());
     println!();
     println!(
         "{}",
-        "📖 Documentation: https://github.com/AsimAftab/Project-Odin"
-            .bright_blue()
+        "📖 Documentation: https://github.com/AsimAftab/Project-Odin".bright_blue()
     );
     println!();
 }
