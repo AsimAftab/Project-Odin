@@ -1,3 +1,4 @@
+pub mod archive;
 pub mod git_cli;
 pub mod github;
 pub mod install;

@@ -83,6 +83,28 @@ impl HistoryService {
         self.compute_diff(previous_id, snapshot_id)
     }
 
+    /// Resolve a string that may be a snapshot ID or a tag back to a snapshot ID.
+    /// IDs match first; tags are searched only if no ID match is found.
+    pub fn resolve(&self, id_or_tag: &str) -> Result<String> {
+        let history_file = self.odin_dir.join(".history");
+        if !history_file.exists() {
+            anyhow::bail!("no snapshot history; run `odin snapshot` first");
+        }
+        let content = fs::read_to_string(&history_file)?;
+        let index: HistoryIndex = serde_json::from_str(&content)?;
+        if index.snapshots.iter().any(|m| m.id == id_or_tag) {
+            return Ok(id_or_tag.to_string());
+        }
+        if let Some(meta) = index
+            .snapshots
+            .iter()
+            .find(|m| m.tag.as_deref() == Some(id_or_tag))
+        {
+            return Ok(meta.id.clone());
+        }
+        anyhow::bail!("snapshot or tag '{}' not found in history", id_or_tag)
+    }
+
     pub fn register_snapshot(&self, metadata: SnapshotMetadata) -> Result<()> {
         let history_file = self.odin_dir.join(".history");
 

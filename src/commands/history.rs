@@ -37,12 +37,17 @@ pub async fn run(ctx: AppContext, args: HistoryArgs) -> Result<()> {
     for (idx, entry) in history.iter().enumerate() {
         let timestamp = format_timestamp(&entry.metadata.timestamp);
         let snap_id = entry.metadata.id.bright_yellow();
+        let tag_suffix = match &entry.metadata.tag {
+            Some(tag) => format!(" [{}]", tag.bright_cyan()),
+            None => String::new(),
+        };
 
         println!(
-            "{} {} ({})",
+            "{} {} ({}){}",
             if idx == 0 { "📍" } else { "📷" },
             timestamp,
-            snap_id
+            snap_id,
+            tag_suffix
         );
 
         if entry.changes.is_empty() {

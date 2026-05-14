@@ -37,6 +37,7 @@ pub enum Commands {
     Batmode(crate::commands::batmode::BatmodeArgs),
     Watch(crate::commands::watch::WatchArgs),
     Plugin(crate::commands::plugin::PluginArgs),
+    Archive(crate::commands::archive::ArchiveArgs),
 }
 
 #[derive(Debug, Args)]
@@ -91,6 +92,10 @@ pub struct ConfigShowArgs {
 pub struct SnapshotArgs {
     #[arg(long)]
     pub include_machine_env: bool,
+
+    /// Optional human-readable tag for this snapshot (e.g. "prod", "before-migration").
+    #[arg(long)]
+    pub tag: Option<String>,
 }
 
 #[derive(Debug, Args)]

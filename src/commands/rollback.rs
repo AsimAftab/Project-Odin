@@ -7,7 +7,7 @@ use colored::Colorize;
 
 #[derive(Debug, clap::Args)]
 pub struct RollbackArgs {
-    /// Snapshot ID to rollback to
+    /// Snapshot ID or tag to rollback to.
     pub snapshot_id: String,
 
     /// Apply changes without confirmation
@@ -21,12 +21,13 @@ pub struct RollbackArgs {
 
 pub async fn run(ctx: AppContext, args: RollbackArgs) -> Result<()> {
     let history_service = HistoryService::new(ctx.odin_dir().clone());
+    let resolved_id = history_service.resolve(&args.snapshot_id)?;
     let history = history_service.get_history()?;
 
     let target_snapshot = history
         .iter()
-        .find(|h| h.metadata.id == args.snapshot_id)
-        .ok_or_else(|| anyhow::anyhow!("Snapshot '{}' not found", args.snapshot_id))?;
+        .find(|h| h.metadata.id == resolved_id)
+        .ok_or_else(|| anyhow::anyhow!("Snapshot '{}' not found", resolved_id))?;
 
     if args.json {
         let json = serde_json::to_string_pretty(target_snapshot)?;
@@ -37,10 +38,10 @@ pub async fn run(ctx: AppContext, args: RollbackArgs) -> Result<()> {
     println!("{}", "Rollback Details".bold().cyan());
     println!("{}\n", "═".repeat(60));
 
-    println!(
-        "Rolling back to snapshot: {}",
-        args.snapshot_id.bright_yellow()
-    );
+    println!("Rolling back to snapshot: {}", resolved_id.bright_yellow());
+    if let Some(tag) = &target_snapshot.metadata.tag {
+        println!("Tag: {}", tag.bright_yellow());
+    }
     println!("Date: {}", target_snapshot.metadata.timestamp.dimmed());
     println!("Hostname: {}", target_snapshot.metadata.hostname);
     println!(
@@ -74,7 +75,7 @@ pub async fn run(ctx: AppContext, args: RollbackArgs) -> Result<()> {
     let store = SnapshotStore::new(ctx.odin_dir().clone());
     let restore_service = RestoreService::new(store);
     restore_service
-        .restore_from_id(&args.snapshot_id, args.apply, false)
+        .restore_from_id(&resolved_id, args.apply, false)
         .await?;
 
     if args.apply {

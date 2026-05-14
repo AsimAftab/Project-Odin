@@ -1,3 +1,4 @@
+pub mod archive;
 pub mod batmode;
 pub mod config;
 pub mod dashboard;

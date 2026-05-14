@@ -15,7 +15,7 @@ pub async fn run(ctx: AppContext, args: SnapshotArgs) -> Result<()> {
     spinner.enable_steady_tick(std::time::Duration::from_millis(80));
     spinner.set_message("capturing developer environment");
     let machine = SnapshotService::new(store.clone())
-        .capture(args.include_machine_env)
+        .capture(args.include_machine_env, args.tag.clone())
         .await?;
     spinner.finish_and_clear();
 
@@ -56,6 +56,9 @@ pub async fn run(ctx: AppContext, args: SnapshotArgs) -> Result<()> {
         machine.snapshot_id.to_string().bright_yellow(),
         machine.hostname
     );
+    if let Some(tag) = &args.tag {
+        println!("{} tagged as {}", "tag".cyan(), tag.bright_yellow());
+    }
     println!("{} {}", "dir".cyan(), ctx.odin_dir().display());
     Ok(())
 }

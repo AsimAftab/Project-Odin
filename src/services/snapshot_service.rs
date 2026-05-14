@@ -19,7 +19,11 @@ impl SnapshotService {
         Self { store }
     }
 
-    pub async fn capture(&self, include_machine_env: bool) -> Result<MachineSnapshot> {
+    pub async fn capture(
+        &self,
+        include_machine_env: bool,
+        tag: Option<String>,
+    ) -> Result<MachineSnapshot> {
         let snapshot_id = uuid::Uuid::new_v4();
         let machine = collect_machine(snapshot_id).await?;
         let environment = windows::environment(include_machine_env).await?;
@@ -51,6 +55,7 @@ impl SnapshotService {
             hostname: machine.hostname.clone(),
             os_version: machine.os_version.clone(),
             total_packages: packages.packages.len(),
+            tag,
         })?;
 
         Ok(machine)

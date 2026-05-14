@@ -9,6 +9,9 @@ pub struct SnapshotMetadata {
     pub hostname: String,
     pub os_version: String,
     pub total_packages: usize,
+    /// Optional human-readable tag, e.g. "prod", "before-migration".
+    #[serde(default)]
+    pub tag: Option<String>,
 }
 
 /// Type of environment change
@@ -190,6 +193,7 @@ mod tests {
             hostname: "PC1".to_string(),
             os_version: "Windows 11".to_string(),
             total_packages: 50,
+            tag: None,
         };
 
         let meta2 = SnapshotMetadata {
@@ -198,6 +202,7 @@ mod tests {
             hostname: "PC1".to_string(),
             os_version: "Windows 11".to_string(),
             total_packages: 52,
+            tag: None,
         };
 
         index.add_snapshot(meta1);
