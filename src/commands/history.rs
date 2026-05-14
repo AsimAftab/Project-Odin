@@ -1,5 +1,6 @@
 use crate::core::context::AppContext;
 use crate::services::history_service::HistoryService;
+use crate::ui::text_tables::rule;
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use colored::Colorize;
@@ -30,9 +31,8 @@ pub async fn run(ctx: AppContext, args: HistoryArgs) -> Result<()> {
         return Ok(());
     }
 
-    // Display history in human-readable format
-    println!("{}", "📚 Snapshot History".bold().cyan());
-    println!("{}\n", "═".repeat(60));
+    println!("{}", "Snapshot History".bold().cyan());
+    println!("{}\n", rule(60));
 
     for (idx, entry) in history.iter().enumerate() {
         let timestamp = format_timestamp(&entry.metadata.timestamp);

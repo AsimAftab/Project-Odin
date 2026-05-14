@@ -21,7 +21,8 @@ pub fn print_banner() {
             .white()
             .bold()
     );
-    println!("║ {} │", "v0.1.0 — Fast • Secure • Reliable".bright_green());
+    let version_line = format!("v{} — Fast • Secure • Reliable", env!("CARGO_PKG_VERSION"));
+    println!("║ {} │", version_line.bright_green());
     println!(
         "{}",
         "╚════════════════════════════════════════════════════════════╝".bright_blue()
