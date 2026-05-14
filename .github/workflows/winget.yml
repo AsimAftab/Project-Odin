@@ -12,14 +12,23 @@ name: Publish to winget
 #   3. Add it as a repository secret named WINGET_TOKEN
 
 on:
-  release:
-    types: [released]
+  # Fire after the Release workflow finishes successfully.
+  # The previous trigger (`release: types: [released]`) never fires when the
+  # release is created by GITHUB_TOKEN from inside another workflow — GitHub
+  # blocks the cascade to prevent recursive runs.
+  workflow_run:
+    workflows: ["Release"]
+    types: [completed]
   workflow_dispatch:
 
 jobs:
   publish:
     name: Publish manifest update
     runs-on: windows-latest
+    # Skip if upstream Release run failed or was cancelled.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
     steps:
       - name: Submit to winget-pkgs
         uses: vedantmgoyal2009/winget-releaser@v2
