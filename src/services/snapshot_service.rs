@@ -5,8 +5,9 @@ use chrono::Utc;
 use sysinfo::System;
 
 use crate::integrations::{git_cli, package_managers, powershell, process, vscode, windows};
+use crate::models::history::SnapshotMetadata;
 use crate::models::machine::{DeveloperTool, MachineSnapshot};
-use crate::services::{export_service, storage::SnapshotStore};
+use crate::services::{export_service, history_service::HistoryService, storage::SnapshotStore};
 use crate::utils::paths;
 
 pub struct SnapshotService {
@@ -32,6 +33,26 @@ impl SnapshotService {
         export_service::ExportService::new(self.store.clone())
             .export_scripts(true)
             .await?;
+
+        let history_root = self
+            .store
+            .root()
+            .join("history")
+            .join(snapshot_id.to_string());
+        let history_store = SnapshotStore::new(history_root);
+        history_store
+            .write_snapshot(&machine, &environment, &packages, &vscode, &git)
+            .await?;
+
+        let history_service = HistoryService::new(self.store.root().to_path_buf());
+        history_service.register_snapshot(SnapshotMetadata {
+            id: snapshot_id.to_string(),
+            timestamp: machine.captured_at.to_rfc3339(),
+            hostname: machine.hostname.clone(),
+            os_version: machine.os_version.clone(),
+            total_packages: packages.packages.len(),
+        })?;
+
         Ok(machine)
     }
 }

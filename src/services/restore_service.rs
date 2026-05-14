@@ -1,9 +1,12 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use colored::Colorize;
 use indicatif::{ProgressBar, ProgressStyle};
 
 use crate::integrations::{git_cli, process, vscode as vscode_integration};
-use crate::models::package::InstalledPackage;
+use crate::models::environment::EnvironmentSnapshot;
+use crate::models::git::GitConfigSnapshot;
+use crate::models::package::{InstalledPackage, PackageSnapshot};
+use crate::models::vscode::VsCodeExtensionsSnapshot;
 use crate::services::storage::SnapshotStore;
 
 pub struct RestoreService {
@@ -20,102 +23,179 @@ impl RestoreService {
         let environment = self.store.read_environment().await?;
         let vscode = self.store.read_vscode().await?;
         let git = self.store.read_git().await?;
-        let current = crate::integrations::package_managers::list_packages().await?;
-        let bar = ProgressBar::new(packages.packages.len() as u64);
-        bar.set_style(ProgressStyle::with_template(
-            "{spinner:.cyan} [{elapsed_precise}] [{bar:32.cyan/blue}] {pos}/{len} {msg}",
-        )?);
-
-        for package in &packages.packages {
-            bar.set_message(package.id.clone());
-            if installed(package, &current.packages) {
-                println!("{} {}", "skip".green(), package.id);
-                bar.inc(1);
-                continue;
-            }
-            let Some(command) = &package.install_command else {
-                println!(
-                    "{} {} has no install command",
-                    "manual".yellow(),
-                    package.id
-                );
-                bar.inc(1);
-                continue;
-            };
-            println!(
-                "{} {}",
-                if apply {
-                    "run".cyan()
-                } else {
-                    "dry-run".yellow()
-                },
-                command
-            );
-            if apply {
-                let (program, args) = split_command(command);
-                let arg_refs = args.iter().map(String::as_str).collect::<Vec<_>>();
-                let result = process::checked(&program, &arg_refs).await;
-                if let Err(error) = result {
-                    if continue_on_error {
-                        eprintln!("{} {error:#}", "failed".red());
-                    } else {
-                        return Err(error);
-                    }
-                }
-            }
-            bar.inc(1);
-        }
-        bar.finish_and_clear();
-
-        for extension in &vscode.extensions {
-            let command = format!("code --install-extension {}", extension.identifier);
-            println!(
-                "{} {}",
-                if apply {
-                    "run".cyan()
-                } else {
-                    "dry-run".yellow()
-                },
-                command
-            );
-            if apply {
-                if let Some(code) = vscode_integration::executable() {
-                    process::checked(&code, &["--install-extension", &extension.identifier])
-                        .await?;
-                }
-            }
-        }
-
-        for entry in &git.entries {
-            println!(
-                "{} git config --global {} <value>",
-                if apply {
-                    "run".cyan()
-                } else {
-                    "dry-run".yellow()
-                },
-                entry.key
-            );
-            if apply {
-                if let Some(git) = git_cli::executable() {
-                    process::checked(&git, &["config", "--global", &entry.key, &entry.value])
-                        .await?;
-                }
-            }
-        }
-
-        if apply {
-            apply_environment(&environment).await?;
-        } else {
-            println!(
-                "{} would restore {} environment variables and {} PATH entries",
-                "dry-run".yellow(),
-                environment.user_variables.len(),
-                environment.path_entries.len()
-            );
-        }
-        Ok(())
+        run_restore(
+            &packages,
+            &environment,
+            &vscode,
+            &git,
+            apply,
+            continue_on_error,
+        )
+        .await
     }
+
+    pub async fn restore_from_id(
+        &self,
+        snapshot_id: &str,
+        apply: bool,
+        continue_on_error: bool,
+    ) -> Result<()> {
+        let history_root = self.store.root().join("history").join(snapshot_id);
+        if !history_root.exists() {
+            anyhow::bail!(
+                "Historical snapshot files not found at {} — was this snapshot captured before per-id history was added? Run `odin snapshot` again to create a restorable snapshot.",
+                history_root.display()
+            );
+        }
+        let history_store = SnapshotStore::new(history_root);
+        let packages = history_store
+            .read_packages()
+            .await
+            .with_context(|| format!("reading packages for snapshot {}", snapshot_id))?;
+        let environment = history_store
+            .read_environment()
+            .await
+            .with_context(|| format!("reading environment for snapshot {}", snapshot_id))?;
+        let vscode = history_store
+            .read_vscode()
+            .await
+            .with_context(|| format!("reading vscode extensions for snapshot {}", snapshot_id))?;
+        let git = history_store
+            .read_git()
+            .await
+            .with_context(|| format!("reading git config for snapshot {}", snapshot_id))?;
+        run_restore(
+            &packages,
+            &environment,
+            &vscode,
+            &git,
+            apply,
+            continue_on_error,
+        )
+        .await
+    }
+}
+
+async fn run_restore(
+    packages: &PackageSnapshot,
+    environment: &EnvironmentSnapshot,
+    vscode: &VsCodeExtensionsSnapshot,
+    git: &GitConfigSnapshot,
+    apply: bool,
+    continue_on_error: bool,
+) -> Result<()> {
+    let current = crate::integrations::package_managers::list_packages().await?;
+    restore_packages(packages, &current, apply, continue_on_error).await?;
+    restore_vscode(vscode, apply).await?;
+    restore_git(git, apply).await?;
+
+    if apply {
+        apply_environment(environment).await?;
+    } else {
+        println!(
+            "{} would restore {} environment variables and {} PATH entries",
+            "dry-run".yellow(),
+            environment.user_variables.len(),
+            environment.path_entries.len()
+        );
+    }
+    Ok(())
+}
+
+async fn restore_packages(
+    packages: &PackageSnapshot,
+    current: &PackageSnapshot,
+    apply: bool,
+    continue_on_error: bool,
+) -> Result<()> {
+    let bar = ProgressBar::new(packages.packages.len() as u64);
+    bar.set_style(ProgressStyle::with_template(
+        "{spinner:.cyan} [{elapsed_precise}] [{bar:32.cyan/blue}] {pos}/{len} {msg}",
+    )?);
+
+    for package in &packages.packages {
+        bar.set_message(package.id.clone());
+        if installed(package, &current.packages) {
+            println!("{} {}", "skip".green(), package.id);
+            bar.inc(1);
+            continue;
+        }
+        let Some(command) = &package.install_command else {
+            println!(
+                "{} {} has no install command",
+                "manual".yellow(),
+                package.id
+            );
+            bar.inc(1);
+            continue;
+        };
+        println!(
+            "{} {}",
+            if apply {
+                "run".cyan()
+            } else {
+                "dry-run".yellow()
+            },
+            command
+        );
+        if apply {
+            let (program, args) = split_command(command);
+            let arg_refs = args.iter().map(String::as_str).collect::<Vec<_>>();
+            let result = process::checked(&program, &arg_refs).await;
+            if let Err(error) = result {
+                if continue_on_error {
+                    eprintln!("{} {error:#}", "failed".red());
+                } else {
+                    return Err(error);
+                }
+            }
+        }
+        bar.inc(1);
+    }
+    bar.finish_and_clear();
+    Ok(())
+}
+
+async fn restore_vscode(vscode: &VsCodeExtensionsSnapshot, apply: bool) -> Result<()> {
+    for extension in &vscode.extensions {
+        let command = format!("code --install-extension {}", extension.identifier);
+        println!(
+            "{} {}",
+            if apply {
+                "run".cyan()
+            } else {
+                "dry-run".yellow()
+            },
+            command
+        );
+        if apply {
+            if let Some(code) = vscode_integration::executable() {
+                process::checked(&code, &["--install-extension", &extension.identifier]).await?;
+            }
+        }
+    }
+    Ok(())
+}
+
+async fn restore_git(git: &GitConfigSnapshot, apply: bool) -> Result<()> {
+    for entry in &git.entries {
+        println!(
+            "{} git config --global {} <value>",
+            if apply {
+                "run".cyan()
+            } else {
+                "dry-run".yellow()
+            },
+            entry.key
+        );
+        if apply {
+            if let Some(git_bin) = git_cli::executable() {
+                process::checked(&git_bin, &["config", "--global", &entry.key, &entry.value])
+                    .await?;
+            }
+        }
+    }
+    Ok(())
 }
 
 fn installed(package: &InstalledPackage, current: &[InstalledPackage]) -> bool {
@@ -130,9 +210,7 @@ fn split_command(command: &str) -> (String, Vec<String>) {
     (program, parts.map(ToOwned::to_owned).collect())
 }
 
-async fn apply_environment(
-    environment: &crate::models::environment::EnvironmentSnapshot,
-) -> Result<()> {
+async fn apply_environment(environment: &EnvironmentSnapshot) -> Result<()> {
     for variable in &environment.user_variables {
         if variable.name.eq_ignore_ascii_case("PATH") {
             continue;
