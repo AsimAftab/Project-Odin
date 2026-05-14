@@ -50,6 +50,7 @@ struct App {
 }
 
 #[derive(Clone, Copy, PartialEq)]
+#[allow(clippy::upper_case_acronyms)]
 enum SortColumn {
     PID,
     Name,
@@ -128,21 +129,15 @@ async fn app_loop(terminal: &mut Terminal<CrosstermBackend<Stdout>>, app: &mut A
             if let Event::Key(key) = event::read()? {
                 match key.code {
                     KeyCode::Char('q') | KeyCode::Esc => return Ok(()),
-                    KeyCode::Up => {
-                        if app.selected_index > 0 {
-                            app.selected_index -= 1;
-                        }
+                    KeyCode::Up if app.selected_index > 0 => {
+                        app.selected_index -= 1;
                     }
-                    KeyCode::Down => {
-                        if app.selected_index < app.processes.len().saturating_sub(1) {
-                            app.selected_index += 1;
-                        }
+                    KeyCode::Down if app.selected_index < app.processes.len().saturating_sub(1) => {
+                        app.selected_index += 1;
                     }
-                    KeyCode::Char('k') | KeyCode::Char('K') => {
-                        if !app.processes.is_empty() {
-                            let proc = &app.processes[app.selected_index];
-                            let _ = ProcessService::kill_process(proc.pid).await;
-                        }
+                    KeyCode::Char('k') | KeyCode::Char('K') if !app.processes.is_empty() => {
+                        let proc = &app.processes[app.selected_index];
+                        let _ = ProcessService::kill_process(proc.pid).await;
                     }
                     KeyCode::Char('1') => app.sort_column = SortColumn::PID,
                     KeyCode::Char('2') => app.sort_column = SortColumn::Name,

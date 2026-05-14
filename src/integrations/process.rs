@@ -112,7 +112,7 @@ pub async fn get_listening_ports() -> Result<Vec<PortInfo>> {
         }
 
         if let Some(local_addr) = parts.get(1) {
-            if let Some(port_str) = local_addr.split(':').last() {
+            if let Some(port_str) = local_addr.split(':').next_back() {
                 if let Ok(port) = port_str.parse::<u16>() {
                     if let Some(pid_str) = parts.last() {
                         if let Ok(pid) = pid_str.parse::<u32>() {

@@ -41,7 +41,7 @@ pub async fn run(ctx: AppContext, args: DiffArgs) -> Result<()> {
 
 fn format_diff_value(value: Option<&str>) -> String {
     match value {
-        Some(s) if s.is_empty() => "(empty)".to_string(),
+        Some("") => "(empty)".to_string(),
         Some(s) => s.to_string(),
         None => "-".to_string(),
     }

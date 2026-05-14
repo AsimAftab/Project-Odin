@@ -48,7 +48,7 @@ impl SnapshotService {
             .write_snapshot(&machine, &environment, &packages, &vscode, &git)
             .await?;
 
-        let history_service = HistoryService::new(self.store.root().to_path_buf());
+        let history_service = HistoryService::new(self.store.root());
         history_service.register_snapshot(SnapshotMetadata {
             id: snapshot_id.to_string(),
             timestamp: machine.captured_at.to_rfc3339(),

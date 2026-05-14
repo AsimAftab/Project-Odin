@@ -99,6 +99,7 @@ pub struct HistoryIndex {
     pub diffs: HashMap<String, SnapshotDiff>, // Key: "snapshot_a-to-snapshot_b"
 }
 
+#[allow(dead_code)]
 impl HistoryIndex {
     pub fn new() -> Self {
         HistoryIndex {

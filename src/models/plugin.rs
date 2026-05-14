@@ -1,3 +1,9 @@
+// The registry/search/context/index types in this file scaffold a v2 plugin system
+// (remote plugin discovery, hook execution). v1 only uses PluginManifest, PluginCommand,
+// PluginArg, InstalledPlugin, and PluginResult. The rest is intentionally retained as a
+// stable shape contract for the next iteration.
+#![allow(dead_code)]
+
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 

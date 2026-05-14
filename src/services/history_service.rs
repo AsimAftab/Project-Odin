@@ -47,6 +47,7 @@ impl HistoryService {
         Ok(entries)
     }
 
+    #[allow(dead_code)]
     pub fn compare_snapshots(&self, from_id: &str, to_id: &str) -> Result<SnapshotDiff> {
         let history_file = self.odin_dir.join(".history");
 
@@ -124,6 +125,7 @@ impl HistoryService {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub fn cleanup_old_snapshots(&self, keep_count: usize) -> Result<u32> {
         let history_file = self.odin_dir.join(".history");
 

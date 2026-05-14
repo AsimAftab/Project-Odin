@@ -185,7 +185,7 @@ mod tests {
 
     #[test]
     fn test_diff_env_var_added() {
-        let mut state1 = WatcherState::new();
+        let state1 = WatcherState::new();
         let mut state2 = WatcherState::new();
 
         state2
