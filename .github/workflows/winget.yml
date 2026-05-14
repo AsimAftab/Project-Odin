@@ -20,6 +20,11 @@ on:
     workflows: ["Release"]
     types: [completed]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to publish (e.g. v0.2.1). Leave blank to use the latest release."
+        required: false
+        default: ""
 
 jobs:
   publish:
@@ -30,9 +35,30 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       github.event.workflow_run.conclusion == 'success'
     steps:
+      - name: Resolve release tag
+        id: resolve
+        shell: pwsh
+        run: |
+          $tag = ''
+          if ($env:GITHUB_EVENT_NAME -eq 'workflow_dispatch') {
+            $tag = '${{ inputs.tag }}'
+          } elseif ($env:GITHUB_EVENT_NAME -eq 'workflow_run') {
+            $tag = '${{ github.event.workflow_run.head_branch }}'
+          }
+          if (-not $tag) {
+            $resp = Invoke-RestMethod `
+              -Uri "https://api.github.com/repos/$env:GITHUB_REPOSITORY/releases/latest" `
+              -Headers @{ Authorization = "token $env:GITHUB_TOKEN" }
+            $tag = $resp.tag_name
+          }
+          Write-Output "Resolved tag: $tag"
+          "tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Submit to winget-pkgs
         uses: vedantmgoyal2009/winget-releaser@v2
         with:
           identifier: AsimAftab.Odin
           installers-regex: '^odin\.exe$'
+          release-tag: ${{ steps.resolve.outputs.tag }}
           token: ${{ secrets.WINGET_TOKEN }}
