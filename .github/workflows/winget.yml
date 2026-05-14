@@ -25,5 +25,5 @@ jobs:
         uses: vedantmgoyal2009/winget-releaser@v2
         with:
           identifier: AsimAftab.Odin
-          installers-regex: '^odin-.+-x86_64\.msi$'
+          installers-regex: '^odin\.exe$'
           token: ${{ secrets.WINGET_TOKEN }}
