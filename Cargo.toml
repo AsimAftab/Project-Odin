@@ -29,7 +29,7 @@ serde_yaml = "0.9"
 sha2 = "0.10"
 sysinfo = "0.30"
 thiserror = "1.0"
-tokio = { version = "1.40", features = ["macros", "process", "rt-multi-thread", "fs", "io-util", "time"] }
+tokio = { version = "1.40", features = ["macros", "process", "rt-multi-thread", "fs", "io-util", "time", "signal"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 uuid = { version = "1.10", features = ["v4", "serde"] }
