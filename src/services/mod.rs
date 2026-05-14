@@ -4,6 +4,7 @@ pub mod diff_service;
 pub mod doctor_service;
 pub mod export_service;
 pub mod history_service;
+pub mod plugin_service;
 pub mod process_service;
 pub mod restore_service;
 pub mod secret_service;

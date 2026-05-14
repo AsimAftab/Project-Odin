@@ -35,6 +35,7 @@ async fn main() -> Result<()> {
         Some(Commands::Rollback(args)) => commands::rollback::run(ctx, args).await,
         Some(Commands::Batmode(args)) => commands::batmode::run(ctx, args).await,
         Some(Commands::Watch(args)) => commands::watch::run(ctx, args).await,
+        Some(Commands::Plugin(args)) => commands::plugin::run(ctx, args).await,
         None => {
             utils::banner::print_banner();
             Ok(())

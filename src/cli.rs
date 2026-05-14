@@ -36,6 +36,7 @@ pub enum Commands {
     Rollback(crate::commands::rollback::RollbackArgs),
     Batmode(crate::commands::batmode::BatmodeArgs),
     Watch(crate::commands::watch::WatchArgs),
+    Plugin(crate::commands::plugin::PluginArgs),
 }
 
 #[derive(Debug, Args)]
