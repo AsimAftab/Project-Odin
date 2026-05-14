@@ -64,8 +64,8 @@ async fn stage_replace_after_exit(source: &Path, target: &Path) -> Result<()> {
     let script_path =
         std::env::temp_dir().join(format!("odin-updater-{}.ps1", uuid::Uuid::new_v4()));
     let backup = target.with_extension("old.exe");
-    let script = "$ErrorActionPreference = 'Stop'\n\
-         param([int]$CurrentPid, [string]$SourcePath, [string]$TargetPath, [string]$BackupPath)\n\
+    let script = "param([int]$CurrentPid, [string]$SourcePath, [string]$TargetPath, [string]$BackupPath)\n\
+         $ErrorActionPreference = 'Stop'\n\
          while (Get-Process -Id $CurrentPid -ErrorAction SilentlyContinue) { Start-Sleep -Milliseconds 250 }\n\
          if (Test-Path $BackupPath) { Remove-Item $BackupPath -Force }\n\
          if (Test-Path $TargetPath) { Move-Item $TargetPath $BackupPath -Force }\n\
