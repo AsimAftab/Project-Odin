@@ -33,6 +33,7 @@ async fn main() -> Result<()> {
         Some(Commands::Ps(args)) => commands::ps::run(ctx, args).await,
         Some(Commands::History(args)) => commands::history::run(ctx, args).await,
         Some(Commands::Rollback(args)) => commands::rollback::run(ctx, args).await,
+        Some(Commands::Batmode(args)) => commands::batmode::run(ctx, args).await,
         None => {
             utils::banner::print_banner();
             Ok(())

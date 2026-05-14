@@ -1,3 +1,4 @@
+pub mod batmode;
 pub mod config;
 pub mod diff;
 pub mod doctor;

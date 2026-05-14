@@ -34,6 +34,7 @@ pub enum Commands {
     Ps(PsArgs),
     History(crate::commands::history::HistoryArgs),
     Rollback(crate::commands::rollback::RollbackArgs),
+    Batmode(crate::commands::batmode::BatmodeArgs),
 }
 
 #[derive(Debug, Args)]
