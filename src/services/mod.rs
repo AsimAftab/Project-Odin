@@ -1,4 +1,5 @@
 pub mod archive_service;
+pub mod asgard_service;
 pub mod batmode_service;
 pub mod config_service;
 pub mod diff_service;

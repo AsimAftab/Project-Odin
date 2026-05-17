@@ -1,0 +1,12 @@
+name: study-mode
+description: Distraction-free reading + notes
+startup_apps:
+  - name: notes
+    command: notepad
+    window: maximized
+  - name: docs
+    command: https://doc.rust-lang.org/book/
+    window: normal
+browser_urls:
+  - https://news.ycombinator.com
+  - https://github.com/notifications

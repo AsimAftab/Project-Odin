@@ -7,6 +7,8 @@ mod services;
 mod ui;
 mod utils;
 
+mod asgard;
+
 use anyhow::Result;
 use clap::Parser;
 use cli::{Cli, Commands};
@@ -37,6 +39,10 @@ async fn main() -> Result<()> {
         Some(Commands::Watch(args)) => commands::watch::run(ctx, args).await,
         Some(Commands::Plugin(args)) => commands::plugin::run(ctx, args).await,
         Some(Commands::Archive(args)) => commands::archive::run(ctx, args).await,
+        Some(Commands::Activate(args)) => commands::activate::run(ctx, args).await,
+        Some(Commands::Deactivate(args)) => commands::deactivate::run(ctx, args).await,
+        Some(Commands::Profile(args)) => commands::profile::run(ctx, args).await,
+        Some(Commands::Current(args)) => commands::current::run(ctx, args).await,
         None => {
             utils::banner::print_banner();
             Ok(())

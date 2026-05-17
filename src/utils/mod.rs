@@ -4,3 +4,4 @@ pub mod fs;
 pub mod logging;
 pub mod paths;
 pub mod terminal;
+pub mod time;
