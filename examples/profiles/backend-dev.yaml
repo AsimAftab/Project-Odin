@@ -1,0 +1,33 @@
+name: backend-dev
+description: Backend Rust + Postgres workflow
+env:
+  RUST_LOG: debug
+  DATABASE_URL: postgres://localhost/dev
+startup_apps:
+  - name: editor
+    command: code
+    args:
+      - .
+    cwd: C:\repos\backend
+    window: maximized
+  - name: terminal
+    command: wt.exe
+    args:
+      - new-tab
+      - -p
+      - PowerShell
+      - --title
+      - backend
+    window: normal
+  - name: db-console
+    command: psql
+    args:
+      - -h
+      - localhost
+      - -d
+      - dev
+    window: normal
+vscode_workspace: C:\repos\backend\backend.code-workspace
+browser_urls:
+  - https://github.com/myorg/backend/pulls
+  - http://localhost:3000

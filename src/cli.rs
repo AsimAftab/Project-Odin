@@ -38,6 +38,85 @@ pub enum Commands {
     Watch(crate::commands::watch::WatchArgs),
     Plugin(crate::commands::plugin::PluginArgs),
     Archive(crate::commands::archive::ArchiveArgs),
+    Activate(ActivateArgs),
+    Deactivate(DeactivateArgs),
+    Profile(ProfileArgs),
+    Current(CurrentArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct ActivateArgs {
+    /// Profile name. Use `asgard` (or omit in a TTY) to open the interactive selector.
+    pub name: Option<String>,
+
+    #[arg(long)]
+    pub non_interactive: bool,
+
+    #[arg(long, help = "Emit JSON activation report instead of human text.")]
+    pub json: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct DeactivateArgs {}
+
+#[derive(Debug, Args)]
+pub struct ProfileArgs {
+    #[command(subcommand)]
+    pub command: ProfileCommands,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum ProfileCommands {
+    List(ProfileListArgs),
+    Create(ProfileCreateArgs),
+    Delete(ProfileDeleteArgs),
+    Edit(ProfileEditArgs),
+    Export(ProfileExportArgs),
+    Import(ProfileImportArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct ProfileListArgs {
+    #[arg(long)]
+    pub json: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct ProfileCreateArgs {
+    #[arg(long)]
+    pub name: Option<String>,
+}
+
+#[derive(Debug, Args)]
+pub struct ProfileDeleteArgs {
+    pub name: String,
+    #[arg(long, help = "Skip confirmation prompt.")]
+    pub force: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct ProfileEditArgs {
+    pub name: String,
+}
+
+#[derive(Debug, Args)]
+pub struct ProfileExportArgs {
+    pub name: String,
+    #[arg(long, value_name = "PATH", help = "Output .tar.gz path.")]
+    pub out: Option<PathBuf>,
+}
+
+#[derive(Debug, Args)]
+pub struct ProfileImportArgs {
+    pub path: PathBuf,
+    #[arg(long, help = "Overwrite an existing profile of the same name.")]
+    pub force: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct CurrentArgs {
+    #[arg(long)]
+    pub json: bool,
 }
 
 #[derive(Debug, Args)]

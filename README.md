@@ -44,6 +44,45 @@ odin backup     Alias for `odin sync` (online backup to Git)
 odin update     Check for and install the latest Odin release
 ```
 
+### Asgard — Developer Profile Realm
+```text
+odin activate asgard       Open the interactive profile selector (TUI)
+odin activate <profile>    Activate a profile by name
+odin deactivate            Clear the active profile marker
+odin current               Show the active profile and recent history
+odin profile list          List profiles (supports --json)
+odin profile create        Wizard for a new profile
+odin profile edit <name>   Open profile.yaml in $EDITOR
+odin profile delete <name> Remove a profile
+odin profile export <name> Bundle a profile to a .tar.gz
+odin profile import <path> Restore a profile from a .tar.gz
+```
+
+Asgard is the realm where named workstation profiles live. A profile bundles environment variables, startup apps, browser URLs, and an optional VS Code workspace; activating it launches everything in one shot.
+
+Profiles live under `%USERPROFILE%\.odin\asgard\<name>\profile.yaml`. See `examples/profiles/` for templates.
+
+```yaml
+name: backend-dev
+description: Backend Rust + Postgres workflow
+env:
+  RUST_LOG: debug
+startup_apps:
+  - name: editor
+    command: code
+    args: ["."]
+    cwd: C:\repos\backend
+    window: maximized
+  - name: terminal
+    command: wt.exe
+    args: [new-tab, -p, PowerShell]
+vscode_workspace: C:\repos\backend\backend.code-workspace
+browser_urls:
+  - https://github.com/myorg/backend/pulls
+```
+
+`window` accepts `normal`, `minimized`, or `maximized`. `command` may be an exe, a command on PATH, a `.lnk`, or a URL (URLs open in the default browser). Env vars are applied per spawned process; deactivating clears the active marker but does not kill running apps.
+
 ## Snapshot Output
 
 By default Odin writes to `%USERPROFILE%\.odin`:

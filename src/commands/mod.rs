@@ -1,7 +1,10 @@
+pub mod activate;
 pub mod archive;
 pub mod batmode;
 pub mod config;
+pub mod current;
 pub mod dashboard;
+pub mod deactivate;
 pub mod diff;
 pub mod doctor;
 pub mod export;
@@ -10,6 +13,7 @@ pub mod init;
 pub mod kill;
 pub mod plugin;
 pub mod ports;
+pub mod profile;
 pub mod ps;
 pub mod restore;
 pub mod rollback;
