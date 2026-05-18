@@ -28,24 +28,35 @@ pub struct WatchArgs {
 pub async fn run(_ctx: AppContext, args: WatchArgs) -> Result<()> {
     let service = WatcherService::new(args.record.clone());
 
-    println!("{}", "Environment Watch".bold().cyan());
-    println!("{}\n", rule(60));
+    println!();
     println!(
-        "{} sampling every {}s{}",
-        "info".blue(),
-        args.interval,
+        "  {}  {}",
+        "ᛒ".bright_yellow().bold(),
+        "WATCH — Hugin & Munin patrol the realm"
+            .bright_white()
+            .bold()
+    );
+    println!("  {}", rule(60).dimmed());
+    println!(
+        "  {}  sampling every {}s{}",
+        "·".bright_blue(),
+        args.interval.to_string().cyan().bold(),
         if args.follow {
-            " (Ctrl-C to stop)"
+            "  (Ctrl-C to recall)"
         } else {
-            " (one-shot)"
+            "  (one-shot)"
         }
     );
     if let Some(path) = service.record_path() {
-        println!("{} recording events to {}", "info".blue(), path.display());
+        println!(
+            "  {}  ravens scribe to {}",
+            "·".dimmed(),
+            path.display().to_string().cyan()
+        );
     }
 
     let mut previous = service.capture()?;
-    println!("{} captured initial state", "ok".green());
+    println!("  {}  initial state captured", "✓".green().bold());
 
     if !args.follow {
         service.sleep(args.interval).await;
@@ -64,7 +75,8 @@ pub async fn run(_ctx: AppContext, args: WatchArgs) -> Result<()> {
         tokio::select! {
             _ = service.sleep(args.interval) => {}
             _ = tokio::signal::ctrl_c() => {
-                println!("\n{} stopping watch", "ok".green());
+                println!();
+                println!("  {}  ravens recalled", "✓".green().bold());
                 return Ok(());
             }
         }
@@ -73,9 +85,9 @@ pub async fn run(_ctx: AppContext, args: WatchArgs) -> Result<()> {
         service.record(&events).await?;
         if events.is_empty() {
             println!(
-                "{} no changes ({})",
+                "  {}  no drift ({})",
                 "·".dimmed(),
-                chrono::Utc::now().to_rfc3339()
+                chrono::Utc::now().to_rfc3339().dimmed()
             );
         } else {
             print_events(&events);
@@ -86,7 +98,7 @@ pub async fn run(_ctx: AppContext, args: WatchArgs) -> Result<()> {
 
 fn print_events(events: &[WatcherEvent]) {
     if events.is_empty() {
-        println!("{} no changes detected", "ok".green());
+        println!("  {}  no drift detected", "·".dimmed());
         return;
     }
     let mut table = styled_table(&["Kind", "Change", "Name", "Detail"]);

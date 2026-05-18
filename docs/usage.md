@@ -20,8 +20,8 @@ This creates `~/.odin/config.yaml` and initializes the snapshot directory.
 # Take a snapshot of your machine
 odin snapshot
 
-# View the snapshot status
-odin dashboard
+# View the snapshot status (Hliðskjálf — interactive overview)
+odin all-eye         # alias: odin dashboard
 
 # Check machine health
 odin doctor
@@ -39,14 +39,14 @@ odin ports | grep 3000
 # Open interactive process dashboard (like htop)
 odin ps
 
-# Kill a process by port (requires --force)
-odin kill 3000 --force
+# Free a port (requires --force) — alias: kill
+odin freeport 3000 --force
 
-# Kill a process by PID
-odin kill 1234 --force
+# Free a port by PID
+odin freeport 1234 --force
 
-# Preview what would be killed (dry-run, no --force needed)
-odin kill 8080
+# Preview what would be freed (dry-run, no --force needed)
+odin freeport 8080
 ```
 
 ### Restore Your Environment
@@ -174,7 +174,7 @@ odin ports | grep ":8080"
 odin ps
 
 # Or direct command
-odin kill 3000 --force
+odin freeport 3000 --force
 ```
 
 ### Backup Everything
@@ -212,13 +212,13 @@ odin ports | grep "8080"
 ```powershell
 # Daily workflow
 odin snapshot
-odin dashboard
+odin all-eye                  # alias: odin dashboard
 odin doctor
 
 # Port management
 odin ports                    # List all ports
-odin kill 5432 --force       # Kill postgres on port 5432
-odin ps                      # Interactive process view
+odin freeport 5432 --force    # Free postgres on port 5432
+odin ps                       # Interactive process view
 
 # GitHub backup
 odin config github           # First time setup

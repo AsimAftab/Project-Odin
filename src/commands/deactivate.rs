@@ -6,13 +6,19 @@ use crate::core::context::AppContext;
 use crate::services::asgard_service;
 
 pub async fn run(ctx: AppContext, _args: DeactivateArgs) -> Result<()> {
+    println!();
     match asgard_service::deactivate(ctx.odin_dir()).await? {
-        Some(name) => println!("{} cleared active profile {}", "ok".green(), name.cyan()),
-        None => println!("{} no active profile", "·".dimmed()),
+        Some(name) => println!(
+            "  {}  realm {} unbound",
+            "✓".green().bold(),
+            name.bright_yellow().bold()
+        ),
+        None => println!("  {}  no realm bound", "○".dimmed()),
     }
     println!(
-        "{} env was applied per-process; spawned apps still hold their copy until they exit",
-        "note".dimmed()
+        "  {}  env was applied per-process; spawned warriors still hold their copy until they fall",
+        "·".dimmed()
     );
+    println!();
     Ok(())
 }

@@ -12,7 +12,14 @@ use crate::services::{
 use crate::utils::fs;
 
 pub async fn run(ctx: AppContext, args: InitArgs) -> Result<()> {
-    println!("{} initializing Odin workspace", "step".cyan());
+    println!();
+    println!(
+        "  {}  {}",
+        "ᚷ".bright_yellow().bold(),
+        "INIT — forge a fresh vault".bright_white().bold()
+    );
+    println!("  {}", "─".repeat(54).dimmed());
+    println!("  {}  carving the vault skeleton", "·".bright_blue());
     let config_path = ConfigService::new(ctx.odin_dir().clone())
         .init(args.force)
         .await?;
@@ -28,7 +35,7 @@ pub async fn run(ctx: AppContext, args: InitArgs) -> Result<()> {
         ExportService::new(store).export_scripts(args.force).await?;
     }
 
-    println!("{} validating installation", "step".cyan());
+    println!("  {}  validating the bindings", "·".bright_blue());
     let install_status = install::collect_status().await?;
 
     let mut warnings = Vec::new();
@@ -43,7 +50,7 @@ pub async fn run(ctx: AppContext, args: InitArgs) -> Result<()> {
         );
         warnings.push(msg.clone());
 
-        println!("{} {}", "suggestion".yellow(), msg);
+        println!("  {}  {}", "!".yellow().bold(), msg);
         if Confirm::new()
             .with_prompt(
                 "Would you like to add the current executable directory to your User PATH?",
@@ -53,8 +60,8 @@ pub async fn run(ctx: AppContext, args: InitArgs) -> Result<()> {
         {
             install::add_to_user_path(&install_status.current_directory).await?;
             println!(
-                "{} added to User PATH. Restart your terminal to apply changes.",
-                "ok".green()
+                "  {}  added to User PATH. Restart your terminal to apply changes.",
+                "✓".green().bold()
             );
         }
     }
@@ -69,7 +76,7 @@ pub async fn run(ctx: AppContext, args: InitArgs) -> Result<()> {
         );
         warnings.push(msg.clone());
 
-        println!("{} {}", "suggestion".yellow(), msg);
+        println!("  {}  {}", "!".yellow().bold(), msg);
         if Confirm::new()
             .with_prompt(format!(
                 "Would you like to add the default Odin install directory to your User PATH? ({})",
@@ -80,13 +87,13 @@ pub async fn run(ctx: AppContext, args: InitArgs) -> Result<()> {
         {
             install::add_to_user_path(&install_status.user_install_dir).await?;
             println!(
-                "{} added to User PATH. Restart your terminal to apply changes.",
-                "ok".green()
+                "  {}  added to User PATH. Restart your terminal to apply changes.",
+                "✓".green().bold()
             );
         }
     }
 
-    println!("{} checking dependencies", "step".cyan());
+    println!("  {}  divining dependencies", "·".bright_blue());
     let git = git_cli::executable();
     if git.is_none() {
         warnings.push("git is not installed or not discoverable".to_string());
@@ -98,7 +105,7 @@ pub async fn run(ctx: AppContext, args: InitArgs) -> Result<()> {
             .push("no supported package managers were detected (winget/choco/scoop)".to_string());
     }
 
-    println!("{} checking GitHub integration", "step".cyan());
+    println!("  {}  checking the Bifrost (GitHub)", "·".bright_blue());
     let config = ConfigService::new(ctx.odin_dir().clone()).load().await?;
     if let Some(repo) = config.github.repository_url {
         if let Some(token_key) = config.github.token_key {
@@ -122,25 +129,39 @@ pub async fn run(ctx: AppContext, args: InitArgs) -> Result<()> {
         }
     }
 
-    println!("{} initialized {}", "ok".green(), ctx.odin_dir().display());
-    println!("{} {}", "config".cyan(), config_path.display());
+    println!();
     println!(
-        "{} executable {}",
-        "info".cyan(),
-        install_status.current_executable.display()
+        "  {}  vault forged at {}",
+        "✓".green().bold(),
+        ctx.odin_dir().display().to_string().bright_yellow().bold()
     );
     println!(
-        "{} package managers detected: {}",
-        "info".cyan(),
-        installed_managers
+        "    {} {}",
+        "config    ".dimmed(),
+        config_path.display().to_string().cyan()
+    );
+    println!(
+        "    {} {}",
+        "executable".dimmed(),
+        install_status
+            .current_executable
+            .display()
+            .to_string()
+            .cyan()
+    );
+    println!(
+        "    {} {} forge(s) detected",
+        "ready     ".dimmed(),
+        installed_managers.to_string().cyan().bold()
     );
     if warnings.is_empty() {
-        println!("{} setup validation passed", "ok".green());
+        println!("  {}  setup validation passed", "✓".green().bold());
     } else {
         for warning in warnings {
-            println!("{} {}", "warn".yellow(), warning);
+            println!("  {}  {}", "!".yellow().bold(), warning);
         }
-        println!("{} setup completed with warnings", "warn".yellow());
+        println!("  {}  setup completed with warnings", "!".yellow().bold());
     }
+    println!();
     Ok(())
 }

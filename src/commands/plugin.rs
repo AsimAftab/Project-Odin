@@ -69,13 +69,19 @@ pub async fn run(ctx: AppContext, args: PluginArgs) -> Result<()> {
 
 fn install(service: &PluginService, args: PluginInstallArgs) -> Result<()> {
     let installed = service.install(&args.source)?;
+    println!();
     println!(
-        "{} installed plugin {} v{}",
-        "ok".green(),
-        installed.manifest.name.bright_yellow(),
-        installed.manifest.version
+        "  {}  plugin {} v{} installed",
+        "✓".green().bold(),
+        installed.manifest.name.bright_yellow().bold(),
+        installed.manifest.version.cyan()
     );
-    println!("    location: {}", installed.install_path.display());
+    println!(
+        "    {}  {}",
+        "location".dimmed(),
+        installed.install_path.display().to_string().cyan()
+    );
+    println!();
     Ok(())
 }
 
@@ -85,22 +91,28 @@ fn list(service: &PluginService, args: PluginListArgs) -> Result<()> {
         println!("{}", serde_json::to_string_pretty(&plugins)?);
         return Ok(());
     }
-    println!("{}", "Installed Plugins".bold().cyan());
-    println!("{}\n", rule(60));
+    println!();
+    println!(
+        "  {}  {}",
+        "ᛚ".bright_yellow().bold(),
+        "PLUGINS — runes bound to Odin".bright_white().bold()
+    );
+    println!("  {}", rule(60).dimmed());
     if plugins.is_empty() {
         println!(
-            "{} no plugins installed. Use {} to install one.",
-            "info".blue(),
-            "odin plugin install <dir>".cyan()
+            "  {}  no plugins bound — use {} to install one",
+            "·".dimmed(),
+            "odin plugin install <dir>".cyan().bold()
         );
+        println!();
         return Ok(());
     }
     let mut table = styled_table(&["Name", "Version", "Author", "Status", "Description"]);
     for plugin in &plugins {
         let status = if plugin.enabled {
-            "enabled".green().to_string()
+            "✓ ready".green().to_string()
         } else {
-            "disabled".dimmed().to_string()
+            "· dormant".dimmed().to_string()
         };
         table.add_row(vec![
             Cell::new(&plugin.manifest.name),
@@ -111,6 +123,7 @@ fn list(service: &PluginService, args: PluginListArgs) -> Result<()> {
         ]);
     }
     println!("{table}");
+    println!();
     Ok(())
 }
 
@@ -141,16 +154,24 @@ fn run_plugin(service: &PluginService, args: PluginRunArgs) -> Result<()> {
 fn set_enabled(service: &PluginService, name: &str, enabled: bool) -> Result<()> {
     service.set_enabled(name, enabled)?;
     println!(
-        "{} plugin {} {}",
-        "ok".green(),
-        name.bright_yellow(),
-        if enabled { "enabled" } else { "disabled" }
+        "  {}  plugin {} {}",
+        "✓".green().bold(),
+        name.bright_yellow().bold(),
+        if enabled {
+            "awakened".green().to_string()
+        } else {
+            "set dormant".dimmed().to_string()
+        }
     );
     Ok(())
 }
 
 fn remove(service: &PluginService, name: &str) -> Result<()> {
     service.remove(name)?;
-    println!("{} removed plugin {}", "ok".green(), name.bright_yellow());
+    println!(
+        "  {}  plugin {} removed",
+        "✓".green().bold(),
+        name.bright_yellow().bold()
+    );
     Ok(())
 }

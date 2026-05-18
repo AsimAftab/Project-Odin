@@ -56,7 +56,7 @@ Odin is a Windows-first Rust CLI that snapshots and restores developer workstati
 - Route external command execution through `integrations::process::{capture, checked}`; this centralizes exit-code handling and Windows `.cmd/.bat` support.
 - Preserve safety defaults:
   - `odin restore` is dry-run unless `--apply` is set.
-  - `odin dashboard`/`odin config github` have interactive and non-interactive flows; keep both paths working.
+  - `odin all-eye` (alias `dashboard`)/`odin config github` have interactive and non-interactive flows; keep both paths working.
   - `odin update --check` must remain non-mutating; `odin update` stages binary replacement and requires process exit to finalize.
 - For machine-state comparison/deduplication, follow existing normalization: compare package IDs, env names, and extension IDs case-insensitively (`to_ascii_lowercase` / `eq_ignore_ascii_case`).
 - Follow existing error-tolerance patterns in discovery integrations (`package_managers`, `vscode`, `git_cli`): probe failures generally degrade to empty snapshots with warnings rather than aborting the whole snapshot workflow.

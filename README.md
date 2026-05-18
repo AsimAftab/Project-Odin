@@ -24,11 +24,11 @@ odin config     Configure GitHub and show local configuration
 
 ### Monitoring & Diagnostics
 ```text
-odin dashboard  Show snapshot status and next commands (interactive TUI)
+odin all-eye    Hliðskjálf — interactive overview (alias: `odin dashboard`)
 odin doctor     Diagnose broken PATH entries, missing SDKs, and conflicts
 odin ports      List all listening ports with process information (JSON support)
 odin ps         Interactive process dashboard (htop-style with live metrics)
-odin kill       Kill processes by port or PID with safety checks
+odin freeport   Free a bound port or PID with safety checks (alias: `odin kill`)
 ```
 
 ### Time Machine & History
@@ -46,21 +46,42 @@ odin update     Check for and install the latest Odin release
 
 ### Asgard — Developer Profile Realm
 ```text
-odin activate asgard       Open the interactive profile selector (TUI)
-odin activate <profile>    Activate a profile by name
-odin deactivate            Clear the active profile marker
-odin current               Show the active profile and recent history
-odin profile list          List profiles (supports --json)
-odin profile create        Wizard for a new profile
-odin profile edit <name>   Open profile.yaml in $EDITOR
-odin profile delete <name> Remove a profile
-odin profile export <name> Bundle a profile to a .tar.gz
-odin profile import <path> Restore a profile from a .tar.gz
+odin asgard                Enter the profile realm — interactive TUI selector
+odin activate <profile>    Bind a realm by name (non-interactive)
+odin deactivate            Unbind the active realm
+odin current               Show the bound realm and recent bindings
+odin profile list          List realms (supports --json)
+odin profile create        Forge a new realm via the themed wizard
+odin profile edit <name>   Edit a realm interactively
+odin profile delete <name> Dissolve a realm
+odin profile export <name> Bundle a realm to a .tar.gz
+odin profile import <path> Restore a realm from a .tar.gz
 ```
 
-Asgard is the realm where named workstation profiles live. A profile bundles environment variables, startup apps, browser URLs, and an optional VS Code workspace; activating it launches everything in one shot.
+Asgard is the realm where named workstation profiles live. A realm bundles environment variables (runes), startup apps (warriors), browser URLs (ravens), and an optional VS Code workspace; binding it launches everything in one shot.
+
+The interactive selector (`odin asgard`) draws the world tree Yggdrasil at the crown, lists every realm with rich detail in a side scroll, and shows recent bindings — keys: `↑↓` navigate, `Enter` bind, `N` new, `E` edit, `D` delete, `X` unbind, `?` help, `Q` leave.
 
 Profiles live under `%USERPROFILE%\.odin\asgard\<name>\profile.yaml`. See `examples/profiles/` for templates.
+
+### Glossary — Odin's lexicon
+
+Odin's commands and TUIs use a Norse-mythology vocabulary. Quick translation:
+
+| Theme term | Concrete meaning |
+| --- | --- |
+| Realm | A profile / a workstation captured by a snapshot |
+| Vault | The `~/.odin` directory holding snapshots |
+| Rune | A snapshot ID (UUID) or environment variable |
+| Bind / Unbind | Activate / deactivate (a profile, or a snapshot via restore) |
+| Forge | Package manager · or, the act of creating |
+| Warrior | A startup app that rides out on activation |
+| Raven | A browser URL sent flying on activation |
+| Bifrost | GitHub sync (the rainbow bridge) |
+| Hliðskjálf | The All-Eye dashboard (Odin's high seat) |
+| Yggdrasil | The world tree painted in the Asgard banner |
+| Hugin & Munin | Health checks · also, `odin watch` |
+| Mjölnir | The hammer that frees a port (`odin freeport`) |
 
 ```yaml
 name: backend-dev
@@ -190,7 +211,7 @@ odin config show
 
 ## Dashboard
 
-`odin dashboard` opens a Ratatui terminal dashboard when running in an interactive terminal. It shows snapshot metadata, developer tools, package managers, GitHub sync state, and health indicators. Press `q` or `Esc` to quit.
+`odin all-eye` opens a Ratatui terminal dashboard when running in an interactive terminal. It shows snapshot metadata, developer tools, package managers, GitHub sync state, and health indicators. Press `q` or `Esc` to quit. (`odin dashboard` is kept as an alias.)
 
 ## Install
 

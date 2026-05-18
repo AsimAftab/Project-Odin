@@ -93,10 +93,10 @@ async fn run_restore(
         apply_environment(environment).await?;
     } else {
         println!(
-            "{} would restore {} environment variables and {} PATH entries",
-            "dry-run".yellow(),
-            environment.user_variables.len(),
-            environment.path_entries.len()
+            "  {}  would restore {} runes and {} PATH entries",
+            "·".yellow().bold(),
+            environment.user_variables.len().to_string().cyan().bold(),
+            environment.path_entries.len().to_string().cyan().bold()
         );
     }
     Ok(())
@@ -110,33 +110,33 @@ async fn restore_packages(
 ) -> Result<()> {
     let bar = ProgressBar::new(packages.packages.len() as u64);
     bar.set_style(ProgressStyle::with_template(
-        "{spinner:.cyan} [{elapsed_precise}] [{bar:32.cyan/blue}] {pos}/{len} {msg}",
+        "  {spinner:.yellow} [{elapsed_precise}] [{bar:32.yellow/blue}] {pos}/{len} {msg}",
     )?);
 
     for package in &packages.packages {
         bar.set_message(package.id.clone());
         if installed(package, &current.packages) {
-            println!("{} {}", "skip".green(), package.id);
+            println!("  {}  {}", "·".green(), package.id.dimmed());
             bar.inc(1);
             continue;
         }
         let Some(command) = &package.install_command else {
             println!(
-                "{} {} has no install command",
-                "manual".yellow(),
-                package.id
+                "  {}  {} has no install command",
+                "!".yellow().bold(),
+                package.id.cyan()
             );
             bar.inc(1);
             continue;
         };
         println!(
-            "{} {}",
+            "  {}  {}",
             if apply {
-                "run".cyan()
+                "→".bright_blue().bold()
             } else {
-                "dry-run".yellow()
+                "·".yellow().bold()
             },
-            command
+            command.dimmed()
         );
         if apply {
             let (program, args) = split_command(command);
@@ -144,7 +144,7 @@ async fn restore_packages(
             let result = process::checked(&program, &arg_refs).await;
             if let Err(error) = result {
                 if continue_on_error {
-                    eprintln!("{} {error:#}", "failed".red());
+                    eprintln!("  {}  {error:#}", "✗".red().bold());
                 } else {
                     return Err(error);
                 }
@@ -160,13 +160,13 @@ async fn restore_vscode(vscode: &VsCodeExtensionsSnapshot, apply: bool) -> Resul
     for extension in &vscode.extensions {
         let command = format!("code --install-extension {}", extension.identifier);
         println!(
-            "{} {}",
+            "  {}  {}",
             if apply {
-                "run".cyan()
+                "→".bright_blue().bold()
             } else {
-                "dry-run".yellow()
+                "·".yellow().bold()
             },
-            command
+            command.dimmed()
         );
         if apply {
             if let Some(code) = vscode_integration::executable() {
@@ -180,13 +180,13 @@ async fn restore_vscode(vscode: &VsCodeExtensionsSnapshot, apply: bool) -> Resul
 async fn restore_git(git: &GitConfigSnapshot, apply: bool) -> Result<()> {
     for entry in &git.entries {
         println!(
-            "{} git config --global {} <value>",
+            "  {}  git config --global {} <value>",
             if apply {
-                "run".cyan()
+                "→".bright_blue().bold()
             } else {
-                "dry-run".yellow()
+                "·".yellow().bold()
             },
-            entry.key
+            entry.key.cyan()
         );
         if apply {
             if let Some(git_bin) = git_cli::executable() {
@@ -211,11 +211,20 @@ fn split_command(command: &str) -> (String, Vec<String>) {
 }
 
 async fn apply_environment(environment: &EnvironmentSnapshot) -> Result<()> {
+    let mut applied = 0usize;
     for variable in &environment.user_variables {
         if variable.name.eq_ignore_ascii_case("PATH") {
             continue;
         }
         process::checked("setx", &[&variable.name, &variable.value]).await?;
+        applied += 1;
+    }
+    if applied > 0 {
+        println!(
+            "  {}  carved {} rune(s) into the environment",
+            "✓".green().bold(),
+            applied.to_string().cyan().bold()
+        );
     }
     let path_value = environment
         .path_entries
@@ -225,6 +234,11 @@ async fn apply_environment(environment: &EnvironmentSnapshot) -> Result<()> {
         .join(";");
     if !path_value.is_empty() {
         process::checked("setx", &["Path", &path_value]).await?;
+        println!(
+            "  {}  PATH bound — {} entries",
+            "✓".green().bold(),
+            environment.path_entries.len().to_string().cyan().bold()
+        );
     }
     Ok(())
 }

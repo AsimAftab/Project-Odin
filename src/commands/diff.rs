@@ -15,10 +15,19 @@ pub async fn run(ctx: AppContext, args: DiffArgs) -> Result<()> {
         println!("{}", serde_json::to_string_pretty(&report)?);
         return Ok(());
     }
-    println!("{}", "Drift Report".bold().cyan());
-    println!("{}\n", rule(60));
+    println!();
+    println!(
+        "  {}  {}",
+        "ᛜ".bright_yellow().bold(),
+        "DIFF — drift between realm and vault".bright_white().bold()
+    );
+    println!("  {}", rule(60).dimmed());
     if report.changes.is_empty() {
-        println!("{} no drift detected", "ok".green());
+        println!(
+            "  {}  realm matches the vault — no drift",
+            "✓".green().bold()
+        );
+        println!();
         return Ok(());
     }
     let mut table = styled_table(&["Category", "Item", "Before", "After"]);
@@ -31,11 +40,13 @@ pub async fn run(ctx: AppContext, args: DiffArgs) -> Result<()> {
         ]);
     }
     println!("{table}");
+    println!();
     println!(
-        "\n{} {} change(s) detected.",
-        "diff".yellow(),
-        report.changes.len()
+        "  {}  {} drift(s) — bind with `odin restore --apply`",
+        "·".yellow(),
+        report.changes.len().to_string().bright_yellow().bold()
     );
+    println!();
     Ok(())
 }
 
@@ -43,6 +54,6 @@ fn format_diff_value(value: Option<&str>) -> String {
     match value {
         Some("") => "(empty)".to_string(),
         Some(s) => s.to_string(),
-        None => "-".to_string(),
+        None => "—".to_string(),
     }
 }

@@ -97,21 +97,32 @@ async fn github(ctx: AppContext, args: ConfigGithubArgs) -> Result<()> {
             .context("failed to push Odin state after GitHub configuration")?;
     }
 
-    println!("{} GitHub connected as {}", "ok".green(), user.login);
+    println!();
     println!(
-        "{} {}",
-        "repo".cyan(),
-        config.github.repository_url.unwrap_or_default()
+        "  {}  Bifrost raised — connected as {}",
+        "✓".green().bold(),
+        user.login.bright_yellow().bold()
     );
-    println!("{} {}", "branch".cyan(), config.github.branch);
+    println!(
+        "    {}  {}",
+        "repo  ".dimmed(),
+        config.github.repository_url.unwrap_or_default().cyan()
+    );
+    println!("    {}  {}", "branch".dimmed(), config.github.branch.cyan());
     if sync_now {
-        println!("{} initial backup pushed", "ok".green());
+        println!(
+            "  {}  initial backup pushed across the Bifrost",
+            "✓".green().bold()
+        );
     } else {
         println!(
-            "{} run `odin sync` (or `odin backup`) to push snapshots",
-            "next".cyan()
+            "  {}  run {} (or {}) to cross the Bifrost",
+            "→".bright_blue(),
+            "odin sync".cyan().bold(),
+            "odin backup".cyan()
         );
     }
+    println!();
     Ok(())
 }
 
@@ -119,8 +130,15 @@ async fn show(ctx: AppContext, args: ConfigShowArgs) -> Result<()> {
     let config = ConfigService::new(ctx.odin_dir().clone()).load().await?;
     if args.json {
         println!("{}", serde_json::to_string_pretty(&config)?);
-    } else {
-        println!("{}", serde_yaml::to_string(&config)?);
+        return Ok(());
     }
+    println!();
+    println!(
+        "  {}  {}",
+        "ᛏ".bright_yellow().bold(),
+        "CONFIG — runes carved into the vault".bright_white().bold()
+    );
+    println!("  {}", "─".repeat(54).dimmed());
+    println!("{}", serde_yaml::to_string(&config)?);
     Ok(())
 }

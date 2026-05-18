@@ -277,14 +277,14 @@ odin ps --json
 
 ---
 
-### `odin kill`
+### `odin freeport`
 
-Kill processes by port number or process ID.
+Free a port or PID by terminating the bound process. Aliased as `odin kill` for backwards compatibility.
 
 **Features:**
 - **Smart detection**: Automatically detects if input is port or PID
 - **Safety first**: Requires `--force` flag to prevent accidents
-- **Clear feedback**: Shows process being killed and success message
+- **Clear feedback**: Shows the bound process and a Mjölnir-themed success line
 - **Port resolution**: Finds PID from listening port
 
 **Port/PID Detection Logic:**
@@ -293,31 +293,26 @@ Kill processes by port number or process ID.
 
 **Usage:**
 ```powershell
-# Kill process using port (port must be listening)
-odin kill 3000 --force
+# Free a port (port must be listening)
+odin freeport 3000 --force
 
-# Kill process by PID
-odin kill 1234 --force
+# Free by PID
+odin freeport 1234 --force
 
-# Preview (without --force) - shows what would be killed
-odin kill 3000
-# Output: Would kill node.exe (PID 1234) on port 3000
+# Preview (without --force) - shows what would be freed
+odin freeport 3000
 ```
 
 **Examples:**
 ```powershell
-# Port-based kill (common for dev servers)
-odin kill 8080 --force
-# Killed: dotnet.exe (PID 2468)
+# Port-based free (common for dev servers)
+odin freeport 8080 --force
 
-# PID-based kill
-odin kill 5678 --force
-# Killed: postgres.exe (PID 5678)
+# PID-based free
+odin freeport 5678 --force
 
 # Preview mode (no --force)
-odin kill 3000
-# Preview: Would kill node.exe (PID 1234) on port 3000
-# Add --force to confirm
+odin freeport 3000
 ```
 
 **Safety Features:**
@@ -390,35 +385,31 @@ VS Code:
 
 ---
 
-### `odin dashboard`
+### `odin all-eye`
 
-Interactive dashboard showing snapshot status and quick actions.
+The All-Eye — Odin's gaze from Hliðskjálf. Interactive dashboard showing snapshot status, observers, and the Bifrost (sync) state. Aliased as `odin dashboard` for backwards compatibility.
 
 **Displays:**
 - Last snapshot time and age
 - Machine info (CPU, RAM, OS)
-- Package counts by manager
-- Recent changes since last snapshot
-- Git sync status
-- Next recommended commands
-- Quick action buttons
+- Package managers (forges) with ready/dormant state
+- Developer tools (ravens)
+- Hugin & Munin observers (health checks)
+- Bifrost (GitHub sync) state
+- Mead-hall gauge (forges ready ratio)
 
 **Features:**
-- **Interactive TUI**: Color-coded status indicators
-- **Quick launch**: Run restore, sync, snapshot with hotkeys
-- **Status at a glance**: See system health and sync status
-- **Command history**: View recent operations
+- **Interactive TUI**: Themed runic banner and status indicators
+- **Status at a glance**: See system health and sync state
+- **Plain-text fallback**: Non-TTY runs print a themed text overview
 
 **Usage:**
 ```powershell
-# Open dashboard
+# Ascend to Hliðskjálf
+odin all-eye
+
+# Same thing, classic name
 odin dashboard
-
-# Auto-refresh mode
-odin dashboard --watch
-
-# Show as JSON
-odin dashboard --json
 ```
 
 **Keyboard Controls:**

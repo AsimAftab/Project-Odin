@@ -6,28 +6,54 @@ use crate::core::context::AppContext;
 use crate::services::update_service::{UpdateOutcome, UpdateService};
 
 pub async fn run(_ctx: AppContext, args: UpdateArgs) -> Result<()> {
+    println!();
+    println!(
+        "  {}  {}",
+        "ᛗ".bright_yellow().bold(),
+        "UPDATE — renew Mjölnir".bright_white().bold()
+    );
+    println!("  {}", "─".repeat(54).dimmed());
     match UpdateService::run(args.check).await? {
         UpdateOutcome::UpToDate { current, latest } => {
-            println!("{} Odin is up to date ({}).", "ok".green(), current);
+            println!(
+                "  {}  Mjölnir is whole — Odin runs {}",
+                "✓".green().bold(),
+                current.bright_yellow().bold()
+            );
             if latest != current {
-                println!("{} latest release tag: {}", "info".cyan(), latest);
+                println!(
+                    "    {}  latest release tag: {}",
+                    "·".dimmed(),
+                    latest.cyan()
+                );
             }
         }
         UpdateOutcome::UpdateAvailable { current, latest } => {
             println!(
-                "{} update available: {} -> {}",
-                "info".yellow(),
-                current,
-                latest
+                "  {}  new rune available: {} → {}",
+                "!".yellow().bold(),
+                current.dimmed(),
+                latest.bright_yellow().bold()
+            );
+            println!(
+                "    {}  run {} to renew the hammer",
+                "→".bright_blue(),
+                "odin update".cyan().bold()
             );
         }
         UpdateOutcome::UpdateStaged { current, latest } => {
-            println!("{} update staged: {} -> {}", "ok".green(), current, latest);
             println!(
-                "{} restart your terminal to use the updated binary once this process exits",
-                "next".cyan()
+                "  {}  rune staged: {} → {}",
+                "✓".green().bold(),
+                current.dimmed(),
+                latest.bright_yellow().bold()
+            );
+            println!(
+                "    {}  restart your terminal to wield the renewed hammer",
+                "→".bright_blue()
             );
         }
     }
+    println!();
     Ok(())
 }

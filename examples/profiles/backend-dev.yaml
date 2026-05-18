@@ -1,8 +1,14 @@
+# A realm for backend Rust + Postgres work.
+# Bind it with: odin activate backend-dev
 name: backend-dev
 description: Backend Rust + Postgres workflow
+
+# Runes — environment variables exported into spawned warriors.
 env:
   RUST_LOG: debug
   DATABASE_URL: postgres://localhost/dev
+
+# Warriors — apps that ride out when the realm is bound.
 startup_apps:
   - name: editor
     command: code
@@ -27,7 +33,14 @@ startup_apps:
       - -d
       - dev
     window: normal
+
+# Forge — VS Code workspace opened on activation.
 vscode_workspace: C:\repos\backend\backend.code-workspace
+
+# Ravens — URLs sent flying on activation.
 browser_urls:
-  - https://github.com/myorg/backend/pulls
-  - http://localhost:3000
+  - name: backend-prs
+    url: https://github.com/myorg/backend/pulls
+  - name: local
+    url: http://localhost:3000
+

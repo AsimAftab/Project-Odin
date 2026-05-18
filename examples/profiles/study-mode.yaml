@@ -1,5 +1,9 @@
+# A realm for distraction-free reading and notes.
+# Bind it with: odin activate study-mode
 name: study-mode
 description: Distraction-free reading + notes
+
+# Warriors — what rides out when the realm is bound.
 startup_apps:
   - name: notes
     command: notepad
@@ -7,6 +11,11 @@ startup_apps:
   - name: docs
     command: https://doc.rust-lang.org/book/
     window: normal
+
+# Ravens — URLs sent flying on activation.
 browser_urls:
-  - https://news.ycombinator.com
-  - https://github.com/notifications
+  - name: hn
+    url: https://news.ycombinator.com
+  - name: notifications
+    url: https://github.com/notifications
+

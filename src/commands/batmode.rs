@@ -89,10 +89,10 @@ fn add(service: &BatmodeService, args: BatmodeAddArgs) -> Result<()> {
     };
     service.add(&args.profile, entry.clone())?;
     println!(
-        "{} added {} to profile {}",
-        "ok".green(),
-        entry.display_name().bright_yellow(),
-        args.profile.cyan()
+        "  {}  bound {} to profile {}",
+        "✓".green().bold(),
+        entry.display_name().bright_yellow().bold(),
+        args.profile.cyan().bold()
     );
     Ok(())
 }
@@ -100,7 +100,11 @@ fn add(service: &BatmodeService, args: BatmodeAddArgs) -> Result<()> {
 fn remove(service: &BatmodeService, args: BatmodeRemoveArgs) -> Result<()> {
     if args.all {
         service.remove_profile(&args.profile)?;
-        println!("{} removed profile {}", "ok".green(), args.profile.cyan());
+        println!(
+            "  {}  profile {} dissolved",
+            "✓".green().bold(),
+            args.profile.bright_yellow().bold()
+        );
         return Ok(());
     }
     let Some(index) = args.index else {
@@ -108,10 +112,10 @@ fn remove(service: &BatmodeService, args: BatmodeRemoveArgs) -> Result<()> {
     };
     let removed = service.remove_entry(&args.profile, index)?;
     println!(
-        "{} removed {} from profile {}",
-        "ok".green(),
-        removed.display_name().bright_yellow(),
-        args.profile.cyan()
+        "  {}  removed {} from profile {}",
+        "✓".green().bold(),
+        removed.display_name().bright_yellow().bold(),
+        args.profile.cyan().bold()
     );
     Ok(())
 }
@@ -122,14 +126,20 @@ fn list(service: &BatmodeService, args: BatmodeListArgs) -> Result<()> {
         println!("{}", serde_json::to_string_pretty(&config)?);
         return Ok(());
     }
-    println!("{}", "Batmode Profiles".bold().cyan());
-    println!("{}\n", rule(60));
+    println!();
+    println!(
+        "  {}  {}",
+        "ᛒ".bright_yellow().bold(),
+        "BATMODE — bound profiles".bright_white().bold()
+    );
+    println!("  {}", rule(60).dimmed());
     if config.profiles.is_empty() {
         println!(
-            "{} no profiles configured. Use {} to add one.",
-            "info".blue(),
-            "odin batmode add <profile> <path>".cyan()
+            "  {}  no profiles bound — use {} to add one",
+            "·".dimmed(),
+            "odin batmode add <profile> <path>".cyan().bold()
         );
+        println!();
         return Ok(());
     }
     let mut table = styled_table(&["Profile", "Entries", "Apps"]);
@@ -152,6 +162,7 @@ fn list(service: &BatmodeService, args: BatmodeListArgs) -> Result<()> {
         ]);
     }
     println!("{table}");
+    println!();
     Ok(())
 }
 
@@ -165,14 +176,16 @@ fn show(service: &BatmodeService, args: BatmodeShowArgs) -> Result<()> {
         println!("{}", serde_json::to_string_pretty(entries)?);
         return Ok(());
     }
+    println!();
     println!(
-        "{} {}",
-        "Profile".bold().cyan(),
-        args.profile.bright_yellow()
+        "  {}  profile {}",
+        "ᛒ".bright_yellow().bold(),
+        args.profile.bright_yellow().bold()
     );
-    println!("{}\n", rule(60));
+    println!("  {}", rule(60).dimmed());
     if entries.is_empty() {
-        println!("(no entries)");
+        println!("  {}  (no entries)", "·".dimmed());
+        println!();
         return Ok(());
     }
     let mut table = styled_table(&["#", "Path", "Args"]);
@@ -184,6 +197,7 @@ fn show(service: &BatmodeService, args: BatmodeShowArgs) -> Result<()> {
         ]);
     }
     println!("{table}");
+    println!();
     Ok(())
 }
 
@@ -195,26 +209,28 @@ fn launch(service: &BatmodeService, args: BatmodeLaunchArgs) -> Result<()> {
         .ok_or_else(|| anyhow::anyhow!("profile '{}' not found", args.profile))?
         .clone();
     println!(
-        "{} launching profile {}",
-        "->".cyan(),
-        args.profile.bright_yellow()
+        "  {}  launching profile {}",
+        "→".bright_blue().bold(),
+        args.profile.bright_yellow().bold()
     );
     for entry in &entries {
-        println!("  {} starting {}...", "->".cyan(), entry.display_name());
+        println!("    {}  {}", "→".bright_blue(), entry.display_name().cyan());
     }
     let summary = service.launch(&args.profile)?;
     for failure in &summary.failures {
-        println!("  {} {}", "fail".red(), failure);
+        println!("    {}  {}", "✗".red().bold(), failure);
     }
+    let (icon, label) = if summary.failures.is_empty() {
+        ("✓".green().bold(), "launched".green().bold())
+    } else {
+        ("!".yellow().bold(), "partial".yellow().bold())
+    };
     println!(
-        "{} launched {}/{}",
-        if summary.failures.is_empty() {
-            "ok".green()
-        } else {
-            "partial".yellow()
-        },
-        summary.launched,
-        summary.total
+        "  {}  {} {}/{}",
+        icon,
+        label,
+        summary.launched.to_string().cyan().bold(),
+        summary.total.to_string().dimmed()
     );
     Ok(())
 }

@@ -15,18 +15,60 @@ pub async fn run(ctx: AppContext, args: CurrentArgs) -> Result<()> {
         return Ok(());
     }
 
+    println!();
+    println!(
+        "  {}  {}",
+        "●".bright_yellow().bold(),
+        "CURRENT — the bound realm".bright_white().bold()
+    );
+    println!("  {}", "─".repeat(54).dimmed());
+
     match (&state.active_profile, &state.activated_at) {
         (Some(name), Some(when)) => {
-            println!("{} {}", "Active Profile:".bold(), name.cyan());
             println!(
-                "{}      {} ({})",
-                "Activated:".bold(),
-                time::humanize_since(*when),
-                when.to_rfc3339()
+                "  {}  realm    {}",
+                "●".green().bold(),
+                name.bright_yellow().bold()
             );
+            println!(
+                "  {}  bound    {} ({})",
+                "·".dimmed(),
+                time::humanize_since(*when).cyan(),
+                when.to_rfc3339().dimmed()
+            );
+            if let Ok(profile) = store.load(name).await {
+                let mut bits: Vec<String> = Vec::new();
+                if !profile.env.is_empty() {
+                    bits.push(format!("{} runes", profile.env.len()));
+                }
+                if !profile.startup_apps.is_empty() {
+                    bits.push(format!("{} warriors", profile.startup_apps.len()));
+                }
+                if !profile.browser_urls.is_empty() {
+                    bits.push(format!("{} ravens", profile.browser_urls.len()));
+                }
+                if profile.vscode_workspace.is_some() {
+                    bits.push("vscode".to_string());
+                }
+                if !bits.is_empty() {
+                    println!("  {}  bears    {}", "·".dimmed(), bits.join(" · ").cyan());
+                }
+                if !profile.description.is_empty() {
+                    println!(
+                        "  {}  scroll   {}",
+                        "·".dimmed(),
+                        profile.description.italic()
+                    );
+                }
+            }
         }
         _ => {
-            println!("{} no active profile", "·".dimmed());
+            println!("  {}  no realm bound", "○".dimmed());
+            println!(
+                "  {}  enter Asgard with {} to forge or bind one",
+                "→".bright_blue(),
+                "odin asgard".cyan().bold()
+            );
         }
     }
 
@@ -38,8 +80,9 @@ pub async fn run(ctx: AppContext, args: CurrentArgs) -> Result<()> {
             .map(|e| format!("{} ({})", e.name, time::humanize_since(e.activated_at)))
             .collect();
         if !parts.is_empty() {
-            println!("{}         {}", "Recent:".bold(), parts.join(", "));
+            println!("  {}  recent   {}", "·".dimmed(), parts.join(", ").dimmed());
         }
     }
+    println!();
     Ok(())
 }

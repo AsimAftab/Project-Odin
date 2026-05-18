@@ -1,5 +1,6 @@
 use anyhow::Result;
 use chrono::Utc;
+use colored::Colorize;
 
 use crate::core::errors::OdinError;
 use crate::integrations::{git_cli, github::GitHubClient, process};
@@ -61,7 +62,12 @@ impl SyncService {
         process::checked(&git, &["-C", &root, "add", "."]).await?;
         let status = process::capture(&git, &["-C", &root, "status", "--porcelain"]).await?;
         if status.stdout.trim().is_empty() {
-            println!("No snapshot changes to sync.");
+            println!();
+            println!(
+                "  {}  realm matches the vault — nothing to send across the Bifrost",
+                "·".dimmed()
+            );
+            println!();
             return Ok(());
         }
 
@@ -74,6 +80,13 @@ impl SyncService {
         process::checked(&git, &["-C", &root, "commit", "-m", &msg]).await?;
         process::checked(&git, &["-C", &root, "branch", "-M", branch]).await?;
         process::checked(&git, &["-C", &root, "push", "-u", "origin", branch]).await?;
+        println!();
+        println!(
+            "  {}  Bifrost crossed — pushed to branch {}",
+            "✓".green().bold(),
+            branch.bright_yellow().bold()
+        );
+        println!();
         Ok(())
     }
 

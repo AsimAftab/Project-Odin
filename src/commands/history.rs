@@ -20,32 +20,47 @@ pub async fn run(ctx: AppContext, args: HistoryArgs) -> Result<()> {
     let service = HistoryService::new(ctx.odin_dir().clone());
     let history = service.get_history()?;
 
-    if history.is_empty() {
-        println!("No snapshot history found. Run 'odin snapshot' first.");
-        return Ok(());
-    }
-
     if args.json {
         let json = serde_json::to_string_pretty(&history)?;
         println!("{}", json);
         return Ok(());
     }
 
-    println!("{}", "Snapshot History".bold().cyan());
-    println!("{}\n", rule(60));
+    if history.is_empty() {
+        println!();
+        println!(
+            "  {}  no snapshot history — run `odin snapshot` first",
+            "·".dimmed()
+        );
+        println!();
+        return Ok(());
+    }
+
+    println!();
+    println!(
+        "  {}  {}",
+        "ᛏ".bright_yellow().bold(),
+        "TIMELINE — runes etched in the vault".bright_white().bold()
+    );
+    println!("  {}", rule(60).dimmed());
 
     for (idx, entry) in history.iter().enumerate() {
         let timestamp = format_timestamp(&entry.metadata.timestamp);
-        let snap_id = entry.metadata.id.bright_yellow();
+        let snap_id = entry.metadata.id.bright_yellow().bold();
         let tag_suffix = match &entry.metadata.tag {
-            Some(tag) => format!(" [{}]", tag.bright_cyan()),
+            Some(tag) => format!(" [{}]", tag.bright_cyan().bold()),
             None => String::new(),
         };
 
+        let marker = if idx == 0 {
+            "●".bright_green().bold()
+        } else {
+            "○".dimmed()
+        };
         println!(
-            "{} {} ({}){}",
-            if idx == 0 { "📍" } else { "📷" },
-            timestamp,
+            "  {} {} ({}){}",
+            marker,
+            timestamp.cyan(),
             snap_id,
             tag_suffix
         );
@@ -109,14 +124,15 @@ pub async fn run(ctx: AppContext, args: HistoryArgs) -> Result<()> {
         println!();
     }
 
-    // Show rollback instructions
-    println!("{}", "Rollback Instructions".underline());
+    println!("  {}", rule(60).dimmed());
     if let Some(entry) = history.first() {
         println!(
-            "To restore to any snapshot, use: {}",
-            format!("odin rollback {}", entry.metadata.id).cyan()
+            "  {}  rollback to a rune with {}",
+            "→".bright_blue(),
+            format!("odin rollback {}", entry.metadata.id).cyan().bold()
         );
     }
+    println!();
 
     Ok(())
 }

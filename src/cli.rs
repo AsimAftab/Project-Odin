@@ -18,46 +18,84 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 pub enum Commands {
-    Dashboard(DashboardArgs),
+    /// Hliðskjálf — interactive overview from the high seat.
+    #[command(visible_aliases = ["dashboard"])]
+    AllEye(AllEyeArgs),
+    /// Forge a fresh vault at ~/.odin (or --odin-dir).
     Init(InitArgs),
+    /// Configure the Bifrost (GitHub) and view local config.
     Config(ConfigArgs),
+    /// Capture this realm into a rune (snapshot) in the vault.
     Snapshot(SnapshotArgs),
+    /// Bind this realm to the vault — preview by default, `--apply` to execute.
     Restore(RestoreArgs),
+    /// Cross the Bifrost — commit and push runes to GitHub.
     #[command(visible_aliases = ["backup", "backup-online", "sync-online", "sync-global"])]
     Sync(SyncArgs),
+    /// Renew Mjölnir — check for and install Odin updates.
     Update(UpdateArgs),
+    /// Eir's gaze — diagnose broken paths, missing tools, conflicts.
     Doctor(DoctorArgs),
+    /// Drift between this realm and the vault.
     Diff(DiffArgs),
+    /// Carve PowerShell bootstrap and restore scripts.
     Export(ExportArgs),
+    /// List bound bindings (listening ports).
     Ports(PortsArgs),
-    Kill(KillArgs),
+    /// Sever a binding by port or PID — release the realm.
+    #[command(visible_aliases = ["kill"])]
+    Freeport(FreeportArgs),
+    /// Watch the host of warriors (htop-style).
     Ps(PsArgs),
+    /// Timeline of runes etched in the vault.
     History(crate::commands::history::HistoryArgs),
+    /// Wind the realm back to a previous rune.
     Rollback(crate::commands::rollback::RollbackArgs),
+    /// Bound launcher profiles (batmode).
     Batmode(crate::commands::batmode::BatmodeArgs),
+    /// Hugin & Munin patrol — watch the realm for drift.
     Watch(crate::commands::watch::WatchArgs),
+    /// Plugins bound to Odin.
     Plugin(crate::commands::plugin::PluginArgs),
+    /// Bundle runes into shareable tar.gz archives.
     Archive(crate::commands::archive::ArchiveArgs),
+    /// Bind a realm in Asgard (`odin activate asgard` opens the TUI).
     Activate(ActivateArgs),
+    /// Open the Asgard profile realm (shortcut for `activate asgard`).
+    Asgard(AsgardArgs),
+    /// Unbind the active realm (env stays in spawned warriors).
     Deactivate(DeactivateArgs),
+    /// Forge, edit, list, export, and import realms in Asgard.
     Profile(ProfileArgs),
+    /// Show the bound realm and recent bindings.
     Current(CurrentArgs),
 }
 
 #[derive(Debug, Args)]
 pub struct ActivateArgs {
-    /// Profile name. Use `asgard` (or omit in a TTY) to open the interactive selector.
+    /// Realm name to bind. Use `asgard` (or omit in a TTY) to open the interactive selector.
     pub name: Option<String>,
 
+    /// Skip the interactive TUI even when a TTY is present.
+    #[arg(long)]
+    pub non_interactive: bool,
+
+    /// Emit JSON activation report instead of human-readable text.
+    #[arg(long)]
+    pub json: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct DeactivateArgs {}
+
+#[derive(Debug, Args)]
+pub struct AsgardArgs {
     #[arg(long)]
     pub non_interactive: bool,
 
     #[arg(long, help = "Emit JSON activation report instead of human text.")]
     pub json: bool,
 }
-
-#[derive(Debug, Args)]
-pub struct DeactivateArgs {}
 
 #[derive(Debug, Args)]
 pub struct ProfileArgs {
@@ -120,7 +158,7 @@ pub struct CurrentArgs {
 }
 
 #[derive(Debug, Args)]
-pub struct DashboardArgs {}
+pub struct AllEyeArgs {}
 
 #[derive(Debug, Args)]
 pub struct InitArgs {
@@ -251,11 +289,11 @@ pub struct PortsArgs {
 }
 
 #[derive(Debug, Args)]
-pub struct KillArgs {
-    #[arg(value_name = "PORT|PID", help = "Port number or process ID to kill")]
+pub struct FreeportArgs {
+    #[arg(value_name = "PORT|PID", help = "Port number or process ID to release")]
     pub target: String,
 
-    #[arg(long, help = "Force kill process without confirmation")]
+    #[arg(long, help = "Force release the binding without confirmation")]
     pub force: bool,
 }
 

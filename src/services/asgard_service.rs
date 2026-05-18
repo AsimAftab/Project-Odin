@@ -86,17 +86,82 @@ pub async fn delete(odin_dir: &Path, name: &str) -> Result<()> {
 }
 
 pub fn print_activation_report(report: &ActivationReport) {
+    let rule: String = "─".repeat(54);
+    println!();
     println!(
-        "{} activated profile {}",
-        "ok".green(),
-        report.profile.cyan()
+        "  {}  realm {} bound",
+        "✓".green().bold(),
+        report.profile.bright_yellow().bold()
     );
+    println!("  {}", rule.dimmed());
+
+    if report.started.is_empty() && report.failed.is_empty() {
+        println!(
+            "  {}  the realm is bound, but quiet — no warriors, ravens, or workspace declared",
+            "·".dimmed()
+        );
+        println!();
+        return;
+    }
+
+    // Group started entries by their prefix (app:, url:, vscode:) for cleaner output.
+    let mut warriors: Vec<&str> = Vec::new();
+    let mut ravens: Vec<&str> = Vec::new();
+    let mut workspaces: Vec<&str> = Vec::new();
     for s in &report.started {
-        println!("  {} {}", "->".green(), s);
+        if let Some(rest) = s.strip_prefix("app: ") {
+            warriors.push(rest);
+        } else if let Some(rest) = s.strip_prefix("url: ") {
+            ravens.push(rest);
+        } else if let Some(rest) = s.strip_prefix("vscode: ") {
+            workspaces.push(rest);
+        } else {
+            warriors.push(s.as_str());
+        }
     }
-    for (label, err) in &report.failed {
-        println!("  {} {} — {}", "x".red(), label, err.dimmed());
+
+    if !warriors.is_empty() {
+        println!(
+            "  {}  ⚒ warriors  ({})",
+            "·".dimmed(),
+            warriors.len().to_string().bright_blue().bold()
+        );
+        for w in &warriors {
+            println!("      {} {}", "→".green(), w);
+        }
     }
+    if !ravens.is_empty() {
+        println!(
+            "  {}  ⌒ ravens    ({})",
+            "·".dimmed(),
+            ravens.len().to_string().bright_blue().bold()
+        );
+        for r in &ravens {
+            println!("      {} {}", "→".green(), r);
+        }
+    }
+    if !workspaces.is_empty() {
+        println!(
+            "  {}  ◇ vscode    ({})",
+            "·".dimmed(),
+            workspaces.len().to_string().bright_blue().bold()
+        );
+        for w in &workspaces {
+            println!("      {} {}", "→".green(), w);
+        }
+    }
+    if !report.failed.is_empty() {
+        println!();
+        println!(
+            "  {}  shattered    ({})",
+            "✗".red().bold(),
+            report.failed.len().to_string().red().bold()
+        );
+        for (label, err) in &report.failed {
+            println!("      {} {} — {}", "✗".red(), label, err.dimmed());
+        }
+    }
+    println!();
 }
 
 fn first_line(s: &str) -> String {
@@ -108,11 +173,13 @@ pub async fn wizard(odin_dir: &Path, suggested_name: Option<String>) -> Result<P
     let store = AsgardStore::new(odin_dir);
     let existing = store.list().await.unwrap_or_default();
 
+    print_wizard_banner();
+
     let name = match suggested_name {
         Some(n) => {
             validate_name(&n).map_err(|e| anyhow!(e))?;
             if existing.iter().any(|x| x == &n) {
-                bail!("profile `{n}` already exists");
+                bail!("realm `{n}` already exists in Asgard");
             }
             n
         }
@@ -124,10 +191,13 @@ pub async fn wizard(odin_dir: &Path, suggested_name: Option<String>) -> Result<P
         .allow_empty(true)
         .interact_text()?;
 
+    print_section("ᚱ", "Runes — environment variables");
     let env = prompt_env_vars()?;
+    print_section("⚒", "Warriors — startup apps");
     let startup_apps = prompt_startup_apps().await?;
-    let vscode_workspace =
-        prompt_optional_path("VS Code workspace path (optional, blank to skip)")?;
+    print_section("◇", "Forge — VS Code workspace");
+    let vscode_workspace = prompt_optional_path("VS Code workspace path (blank to skip)")?;
+    print_section("⌒", "Ravens — browser URLs");
     let browser_urls = prompt_browser_urls()?;
 
     let profile = Profile {
@@ -140,30 +210,91 @@ pub async fn wizard(odin_dir: &Path, suggested_name: Option<String>) -> Result<P
     };
 
     store.save(&profile).await?;
-    println!(
-        "{} saved profile `{}` to {}",
-        "ok".green(),
-        profile.name.cyan(),
-        store.profile_path(&profile.name).display()
-    );
+    print_forged_card(&profile, &store.profile_path(&profile.name));
     Ok(profile)
+}
+
+fn print_forged_card(profile: &Profile, path: &Path) {
+    let rule: String = "─".repeat(58);
+    println!();
+    println!(
+        "  {}  {}",
+        "✓".green().bold(),
+        format!("realm {} forged in Asgard", profile.name)
+            .bright_white()
+            .bold()
+    );
+    println!("  {}", rule.dimmed());
+    if !profile.description.is_empty() {
+        println!("  {}  {}", "·".dimmed(), profile.description.italic());
+    }
+    println!(
+        "  {}  ᚱ runes      {}",
+        "·".dimmed(),
+        profile.env.len().to_string().bright_blue().bold()
+    );
+    println!(
+        "  {}  ⚒ warriors   {}",
+        "·".dimmed(),
+        profile.startup_apps.len().to_string().bright_blue().bold()
+    );
+    println!(
+        "  {}  ⌒ ravens     {}",
+        "·".dimmed(),
+        profile.browser_urls.len().to_string().bright_blue().bold()
+    );
+    if profile.vscode_workspace.is_some() {
+        println!("  {}  ◇ vscode     {}", "·".dimmed(), "linked".green());
+    }
+    println!("  {}", rule.dimmed());
+    println!(
+        "  {}  scribed at {}",
+        "→".bright_blue(),
+        path.display().to_string().dimmed()
+    );
+    println!();
+}
+
+fn print_wizard_banner() {
+    println!();
+    println!(
+        "  {}  {}",
+        "ᚨ".bright_yellow().bold(),
+        "ASGARD — forge a new realm".bright_white().bold()
+    );
+    println!("  {}", "─".repeat(54).dimmed());
+}
+
+fn print_section(glyph: &str, title: &str) {
+    println!();
+    println!(
+        "  {}  {}",
+        glyph.bright_yellow().bold(),
+        title.bright_white().bold()
+    );
 }
 
 fn prompt_name(existing: &[String]) -> Result<String> {
     loop {
-        let raw: String = Input::new().with_prompt("Profile name").interact_text()?;
+        let raw: String = Input::new().with_prompt("Realm name").interact_text()?;
         match validate_name(&raw) {
             Ok(()) if existing.iter().any(|x| x == &raw) => {
-                println!("{} `{raw}` already exists, pick another", "!".yellow());
+                println!(
+                    "  {} `{raw}` is already a realm — choose another rune",
+                    "!".yellow()
+                );
             }
             Ok(()) => return Ok(raw),
-            Err(e) => println!("{} {e}", "!".yellow()),
+            Err(e) => println!("  {} {e}", "!".yellow()),
         }
     }
 }
 
 fn prompt_env_vars() -> Result<BTreeMap<String, String>> {
-    println!("{}", "Environment variables (blank line to finish):".bold());
+    println!(
+        "  {}",
+        "carve KEY=VALUE one at a time — blank line to finish".dimmed()
+    );
     let mut env = BTreeMap::new();
     loop {
         let raw: String = Input::new()
@@ -184,7 +315,10 @@ fn prompt_env_vars() -> Result<BTreeMap<String, String>> {
 }
 
 async fn prompt_startup_apps() -> Result<Vec<StartupApp>> {
-    println!("{}", "Startup apps (Cancel to finish adding):".bold());
+    println!(
+        "  {}",
+        "summon the warriors that ride out at activation".dimmed()
+    );
     let mut apps = Vec::new();
     while let Some(app) = prompt_one_startup_app().await? {
         apps.push(app);
@@ -194,12 +328,12 @@ async fn prompt_startup_apps() -> Result<Vec<StartupApp>> {
 
 async fn prompt_one_startup_app() -> Result<Option<StartupApp>> {
     let sources = [
-        "Pick from installed apps",
-        "Type a command (exe, .lnk, URL)",
+        "Pick from installed warriors",
+        "Carve a command (exe, .lnk, URL)",
         "Cancel",
     ];
     let pick = Select::new()
-        .with_prompt("  How do you want to add this app?")
+        .with_prompt("  Where does this warrior come from?")
         .items(&sources)
         .default(0)
         .interact()?;
@@ -303,7 +437,7 @@ async fn cached_installed_apps() -> Result<Vec<crate::integrations::start_apps::
     let mut guard = cell.lock().await;
     if guard.is_none() {
         let spinner = ProgressBar::new_spinner();
-        spinner.set_style(ProgressStyle::with_template("  {spinner:.cyan} {msg}")?);
+        spinner.set_style(ProgressStyle::with_template("  {spinner:.yellow} {msg}")?);
         spinner.enable_steady_tick(std::time::Duration::from_millis(80));
         spinner.set_message("listing installed apps");
         let result = crate::integrations::start_apps::list_installed().await;
@@ -314,7 +448,10 @@ async fn cached_installed_apps() -> Result<Vec<crate::integrations::start_apps::
 }
 
 fn prompt_browser_urls() -> Result<Vec<BrowserEntry>> {
-    println!("{}", "Browser URLs (blank URL to finish):".bold());
+    println!(
+        "  {}",
+        "send ravens to these URLs on activation — blank URL to finish".dimmed()
+    );
     let mut urls = Vec::new();
     while let Some(entry) = prompt_one_browser_url()? {
         urls.push(entry);
@@ -479,10 +616,14 @@ pub async fn edit_interactive(odin_dir: &Path, name: &str) -> Result<()> {
             7 => remove_env_var(&mut profile.env)?,
             8 => {
                 if profile == original {
-                    println!("{} no changes", "·".dimmed());
+                    println!("  {}  no changes", "·".dimmed());
                 } else {
                     store.save(&profile).await?;
-                    println!("{} saved profile {}", "ok".green(), profile.name.cyan());
+                    println!(
+                        "  {}  realm {} saved",
+                        "✓".green().bold(),
+                        profile.name.bright_yellow().bold()
+                    );
                 }
                 return Ok(());
             }
@@ -496,7 +637,6 @@ pub async fn edit_interactive(odin_dir: &Path, name: &str) -> Result<()> {
 
 fn print_profile_overview(p: &Profile) {
     use std::io::Write;
-    // Clear screen + home cursor so each redraw is clean.
     print!("\x1B[2J\x1B[H");
     let _ = std::io::stdout().flush();
 
@@ -504,36 +644,42 @@ fn print_profile_overview(p: &Profile) {
     println!();
     println!(
         "  {}  {}",
-        " ASGARD ".black().on_cyan().bold(),
-        p.name.white().bold()
+        " ᚨ ASGARD ".black().on_bright_yellow().bold(),
+        p.name.bright_yellow().bold()
     );
     if !p.description.is_empty() {
-        println!("  {}", p.description.dimmed());
+        println!("  {}", p.description.italic().dimmed());
     }
     println!("  {}", rule.dimmed());
 
-    // Environment
     if p.env.is_empty() {
-        println!("  {:7}{}", "env".yellow().bold(), "(none)".dimmed());
+        println!(
+            "  {}  {}",
+            "ᚱ runes  ".bright_yellow().bold(),
+            "(none)".dimmed()
+        );
     } else {
         println!(
-            "  {:7}{}",
-            "env".yellow().bold(),
+            "  {}  {}",
+            "ᚱ runes  ".bright_yellow().bold(),
             format!("{} variable(s)", p.env.len()).dimmed()
         );
         for (k, v) in &p.env {
-            println!("         {} {} {}", k.cyan(), "=".dimmed(), v);
+            println!("          {} {} {}", k.bright_blue(), "=".dimmed(), v);
         }
     }
 
-    // Startup apps
     println!();
     if p.startup_apps.is_empty() {
-        println!("  {:7}{}", "apps".green().bold(), "(none)".dimmed());
+        println!(
+            "  {}  {}",
+            "⚒ warriors".bright_yellow().bold(),
+            "(none)".dimmed()
+        );
     } else {
         println!(
-            "  {:7}{}",
-            "apps".green().bold(),
+            "  {}  {}",
+            "⚒ warriors".bright_yellow().bold(),
             format!("{} item(s)", p.startup_apps.len()).dimmed()
         );
         for (i, a) in p.startup_apps.iter().enumerate() {
@@ -548,9 +694,9 @@ fn print_profile_overview(p: &Profile) {
                 WindowState::Maximized => "  [max]",
             };
             println!(
-                "         {}  {}  {}{}{}",
+                "          {}  {}  {}{}{}",
                 format!("{:>2}.", i + 1).dimmed(),
-                a.name.cyan(),
+                a.name.bright_blue(),
                 a.command,
                 extras.dimmed(),
                 win.dimmed()
@@ -558,31 +704,37 @@ fn print_profile_overview(p: &Profile) {
         }
     }
 
-    // URLs
     println!();
     if p.browser_urls.is_empty() {
-        println!("  {:7}{}", "urls".magenta().bold(), "(none)".dimmed());
+        println!(
+            "  {}  {}",
+            "⌒ ravens ".bright_yellow().bold(),
+            "(none)".dimmed()
+        );
     } else {
         println!(
-            "  {:7}{}",
-            "urls".magenta().bold(),
+            "  {}  {}",
+            "⌒ ravens ".bright_yellow().bold(),
             format!("{} item(s)", p.browser_urls.len()).dimmed()
         );
         for (i, u) in p.browser_urls.iter().enumerate() {
             println!(
-                "         {}  {}  {}",
+                "          {}  {}  {}",
                 format!("{:>2}.", i + 1).dimmed(),
-                u.name.cyan(),
+                u.name.bright_magenta(),
                 u.url.dimmed()
             );
         }
     }
 
-    // VS Code workspace
     println!();
     match &p.vscode_workspace {
-        Some(ws) => println!("  {:7}{}", "vscode".blue().bold(), ws),
-        None => println!("  {:7}{}", "vscode".blue().bold(), "(none)".dimmed()),
+        Some(ws) => println!("  {}  {}", "◇ vscode ".bright_yellow().bold(), ws),
+        None => println!(
+            "  {}  {}",
+            "◇ vscode ".bright_yellow().bold(),
+            "(none)".dimmed()
+        ),
     }
 
     println!("  {}", rule.dimmed());
@@ -606,7 +758,11 @@ where
         .interact()?;
     if pick < items.len() {
         let removed = items.remove(pick);
-        println!("{} removed {}", "ok".green(), render(&removed));
+        println!(
+            "  {}  removed {}",
+            "✓".green().bold(),
+            render(&removed).cyan()
+        );
     }
     Ok(())
 }
@@ -626,7 +782,11 @@ fn remove_env_var(env: &mut BTreeMap<String, String>) -> Result<()> {
         .interact()?;
     if pick < keys.len() {
         env.remove(&keys[pick]);
-        println!("{} removed {}", "ok".green(), keys[pick]);
+        println!(
+            "  {}  removed {}",
+            "✓".green().bold(),
+            keys[pick].bright_blue().bold()
+        );
     }
     Ok(())
 }

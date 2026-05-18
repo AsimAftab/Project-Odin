@@ -35,41 +35,70 @@ pub async fn run(ctx: AppContext, args: RollbackArgs) -> Result<()> {
         return Ok(());
     }
 
-    println!("{}", "Rollback Details".bold().cyan());
-    println!("{}\n", "═".repeat(60));
-
-    println!("Rolling back to snapshot: {}", resolved_id.bright_yellow());
-    if let Some(tag) = &target_snapshot.metadata.tag {
-        println!("Tag: {}", tag.bright_yellow());
-    }
-    println!("Date: {}", target_snapshot.metadata.timestamp.dimmed());
-    println!("Hostname: {}", target_snapshot.metadata.hostname);
+    println!();
     println!(
-        "Total packages: {}\n",
-        target_snapshot.metadata.total_packages
+        "  {}  {}",
+        "ᛞ".bright_yellow().bold(),
+        "ROLLBACK — wind back the realm".bright_white().bold()
     );
+    println!("  {}", "═".repeat(60).dimmed());
+
+    println!(
+        "  {}  rune     {}",
+        "·".dimmed(),
+        resolved_id.bright_yellow().bold()
+    );
+    if let Some(tag) = &target_snapshot.metadata.tag {
+        println!("  {}  tag      {}", "·".dimmed(), tag.bright_cyan().bold());
+    }
+    println!(
+        "  {}  date     {}",
+        "·".dimmed(),
+        target_snapshot.metadata.timestamp.cyan()
+    );
+    println!(
+        "  {}  realm    {}",
+        "·".dimmed(),
+        target_snapshot.metadata.hostname.cyan()
+    );
+    println!(
+        "  {}  packages {}",
+        "·".dimmed(),
+        target_snapshot
+            .metadata
+            .total_packages
+            .to_string()
+            .cyan()
+            .bold()
+    );
+    println!();
 
     if !args.apply {
-        println!("{}", "Preview mode".italic().dimmed());
-        println!("Use {} to apply changes", "--apply".cyan());
         println!(
-            "Example: {}",
-            format!("odin rollback {} --apply", args.snapshot_id).cyan()
+            "  {}  preview only — pass {} to actually wind back",
+            "·".bright_blue(),
+            "--apply".cyan().bold()
+        );
+        println!(
+            "    example: {}",
+            format!("odin rollback {} --apply", args.snapshot_id)
+                .cyan()
+                .bold()
         );
         println!();
     }
 
     println!(
-        "{}",
-        "⚠️  This will restore your environment to the selected snapshot."
-            .bold()
+        "  {}  {}",
+        "⚠".yellow().bold(),
+        "this will rebind your realm to the selected rune"
             .yellow()
+            .bold()
     );
-    println!("This may:");
-    println!("  • Install packages from the historical snapshot");
-    println!("  • Restore VS Code extensions");
-    println!("  • Modify Git configuration");
-    println!("  • Restore environment variables and PATH entries");
+    println!("    • install packages from the historical snapshot");
+    println!("    • restore VS Code extensions");
+    println!("    • modify Git configuration");
+    println!("    • restore environment variables and PATH entries");
     println!();
 
     let store = SnapshotStore::new(ctx.odin_dir().clone());
@@ -79,16 +108,21 @@ pub async fn run(ctx: AppContext, args: RollbackArgs) -> Result<()> {
         .await?;
 
     if args.apply {
-        println!("\n{}", "✓ Rollback completed successfully!".green().bold());
-        println!("Your environment has been restored to the selected snapshot.");
-    } else {
+        println!();
         println!(
-            "\n{}",
-            "Preview complete. Re-run with --apply to actually restore."
-                .italic()
-                .dimmed()
+            "  {}  rollback complete — realm wound back to {}",
+            "✓".green().bold(),
+            resolved_id.bright_yellow().bold()
+        );
+    } else {
+        println!();
+        println!(
+            "  {}  preview complete — re-run with {} to bind",
+            "·".dimmed(),
+            "--apply".cyan().bold()
         );
     }
+    println!();
 
     Ok(())
 }

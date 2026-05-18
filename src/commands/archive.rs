@@ -58,49 +58,55 @@ pub struct ArchiveImportArgs {
 
 pub async fn run(ctx: AppContext, args: ArchiveArgs) -> Result<()> {
     let service = ArchiveService::new(ctx.odin_dir().clone());
-    println!("{}", "Archive".bold().cyan());
-    println!("{}\n", rule(60));
+    println!();
+    println!(
+        "  {}  {}",
+        "ᚹ".bright_yellow().bold(),
+        "ARCHIVE — runes bundled for travel".bright_white().bold()
+    );
+    println!("  {}", rule(60).dimmed());
     match args.command {
         ArchiveCommands::Create(a) => {
             service.create(&a.input_dir, &a.output)?;
             println!(
-                "{} archived {} -> {}",
-                "ok".green(),
-                a.input_dir.display(),
-                a.output.display()
+                "  {}  bundled {} → {}",
+                "✓".green().bold(),
+                a.input_dir.display().to_string().cyan(),
+                a.output.display().to_string().bright_yellow().bold()
             );
         }
         ArchiveCommands::Extract(a) => {
             service.extract(&a.input, &a.output_dir)?;
             println!(
-                "{} extracted {} -> {}",
-                "ok".green(),
-                a.input.display(),
-                a.output_dir.display()
+                "  {}  unfurled {} → {}",
+                "✓".green().bold(),
+                a.input.display().to_string().cyan(),
+                a.output_dir.display().to_string().bright_yellow().bold()
             );
         }
         ArchiveCommands::Export(a) => {
             let source = service.export(&a.snapshot, &a.output)?;
             println!(
-                "{} exported snapshot {} -> {}",
-                "ok".green(),
-                source.display(),
-                a.output.display()
+                "  {}  rune {} → {}",
+                "✓".green().bold(),
+                source.display().to_string().cyan(),
+                a.output.display().to_string().bright_yellow().bold()
             );
         }
         ArchiveCommands::Import(a) => {
             let metadata = service.import(&a.input).await?;
             println!(
-                "{} imported snapshot {}",
-                "ok".green(),
-                metadata.id.bright_yellow()
+                "  {}  rune sealed: {}",
+                "✓".green().bold(),
+                metadata.id.bright_yellow().bold()
             );
             if let Some(tag) = &metadata.tag {
-                println!("    tag: {}", tag.bright_cyan());
+                println!("    {}  {}", "tag     ".dimmed(), tag.bright_cyan());
             }
-            println!("    hostname: {}", metadata.hostname);
-            println!("    captured: {}", metadata.timestamp);
+            println!("    {}  {}", "realm   ".dimmed(), metadata.hostname.cyan());
+            println!("    {}  {}", "captured".dimmed(), metadata.timestamp.cyan());
         }
     }
+    println!();
     Ok(())
 }

@@ -10,33 +10,48 @@ pub async fn run(_ctx: crate::core::context::AppContext, args: PortsArgs) -> Res
     if args.json {
         let json = serde_json::to_string_pretty(&ports)?;
         println!("{}", json);
-    } else {
-        if ports.is_empty() {
-            println!("{}", "No listening ports found".yellow());
-            return Ok(());
-        }
-
-        println!("{}", "\n=== Listening Ports ===".cyan().bold());
-        println!(
-            "{:<6} {:<10} {:<8} {:<30}",
-            "PORT".bold(),
-            "PROTOCOL".bold(),
-            "PID".bold(),
-            "PROCESS".bold()
-        );
-        println!("{}", "─".repeat(60));
-
-        for port in ports {
-            println!(
-                "{:<6} {:<10} {:<8} {:<30}",
-                port.port.to_string().yellow(),
-                port.protocol.cyan(),
-                port.pid.to_string().magenta(),
-                port.process_name
-            );
-        }
-        println!();
+        return Ok(());
     }
+
+    println!();
+    println!(
+        "  {}  {}",
+        "ᛇ".bright_yellow().bold(),
+        "BINDINGS — listening ports".bright_white().bold()
+    );
+    println!("  {}", "─".repeat(60).dimmed());
+
+    if ports.is_empty() {
+        println!("  {}  no realm holds an open binding", "·".dimmed());
+        println!();
+        return Ok(());
+    }
+
+    println!(
+        "  {:<6} {:<10} {:<8} {}",
+        "PORT".bright_yellow().bold(),
+        "PROTO".bright_yellow().bold(),
+        "PID".bright_yellow().bold(),
+        "PROCESS".bright_yellow().bold()
+    );
+    println!("  {}", "·".repeat(60).dimmed());
+
+    for port in ports {
+        println!(
+            "  {:<6} {:<10} {:<8} {}",
+            port.port.to_string().bright_blue().bold(),
+            port.protocol.dimmed(),
+            port.pid.to_string().magenta(),
+            port.process_name
+        );
+    }
+    println!();
+    println!(
+        "  {}  free a binding with {}",
+        "→".dimmed(),
+        "odin freeport <PORT|PID> --force".cyan()
+    );
+    println!();
 
     Ok(())
 }

@@ -9,10 +9,12 @@ pub async fn run(ctx: AppContext, args: ExportArgs) -> Result<()> {
     ExportService::new(SnapshotStore::new(ctx.odin_dir().clone()))
         .export_scripts(args.force)
         .await?;
+    println!();
     println!(
-        "{} scripts exported to {}",
-        "ok".green(),
-        ctx.odin_dir().display()
+        "  {}  scripts carved into {}",
+        "✓".green().bold(),
+        ctx.odin_dir().display().to_string().bright_yellow().bold()
     );
+    println!();
     Ok(())
 }

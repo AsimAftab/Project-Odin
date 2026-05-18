@@ -43,39 +43,60 @@ async fn list(ctx: AppContext, args: ProfileListArgs) -> Result<()> {
         return Ok(());
     }
 
+    println!();
+    println!(
+        "  {}  {}",
+        "ᚨ".bright_yellow().bold(),
+        "ASGARD — realms in the vault".bright_white().bold()
+    );
+    println!("  {}", "─".repeat(60).dimmed());
+
     if summaries.is_empty() {
         println!(
-            "{} no profiles yet — run `odin activate asgard` to create one",
-            "·".dimmed()
+            "  {}  no realms forged yet — run {} to forge one",
+            "○".dimmed(),
+            "odin asgard".cyan().bold()
         );
+        println!();
         return Ok(());
     }
 
-    println!("{}", "Asgard Profiles".bold());
     for s in summaries {
-        let marker = if active.as_deref() == Some(s.name.as_str()) {
-            "● ".green()
+        let is_active = active.as_deref() == Some(s.name.as_str());
+        let marker = if is_active {
+            "●".bright_green().bold()
         } else {
-            "  ".normal()
+            "○".dimmed()
         };
         let extras = format!(
-            "apps:{} urls:{}{}",
+            "⚒:{} ⌒:{}{}",
             s.startup_app_count,
             s.browser_url_count,
-            if s.has_vscode { " vscode" } else { "" }
+            if s.has_vscode { " ◇" } else { "" }
         );
         if s.description.is_empty() {
-            println!("{}{}  {}", marker, s.name.cyan(), extras.dimmed());
+            println!(
+                "  {} {}  {}",
+                marker,
+                format!("{:18}", s.name).bright_yellow().bold(),
+                extras.dimmed()
+            );
         } else {
             println!(
-                "{}{}  {} — {}",
+                "  {} {}  {}  {}",
                 marker,
-                s.name.cyan(),
+                format!("{:18}", s.name).bright_yellow().bold(),
                 extras.dimmed(),
-                s.description
+                s.description.italic()
             );
         }
     }
+    println!("  {}", "─".repeat(60).dimmed());
+    println!(
+        "  {}  legend:  ⚒ warriors · ⌒ ravens · ◇ vscode",
+        "·".dimmed()
+    );
+    println!();
     Ok(())
 }
 
@@ -105,7 +126,11 @@ async fn delete(ctx: AppContext, args: ProfileDeleteArgs) -> Result<()> {
         }
     }
     asgard_service::delete(ctx.odin_dir(), &args.name).await?;
-    println!("{} deleted {}", "ok".green(), args.name.cyan());
+    println!(
+        "  {}  realm {} dissolved",
+        "✓".green().bold(),
+        args.name.bright_yellow().bold()
+    );
     Ok(())
 }
 
@@ -136,10 +161,10 @@ async fn export(ctx: AppContext, args: ProfileExportArgs) -> Result<()> {
     tokio::task::spawn_blocking(move || tar_gz_dir(&dir_clone, &name, &out_clone)).await??;
 
     println!(
-        "{} exported {} to {}",
-        "ok".green(),
-        args.name.cyan(),
-        out.display()
+        "  {}  realm {} bundled to {}",
+        "✓".green().bold(),
+        args.name.bright_yellow().bold(),
+        out.display().to_string().cyan()
     );
     Ok(())
 }
@@ -175,7 +200,11 @@ async fn import(ctx: AppContext, args: ProfileImportArgs) -> Result<()> {
         );
     }
 
-    println!("{} imported {}", "ok".green(), profile.name.cyan());
+    println!(
+        "  {}  realm {} imported",
+        "✓".green().bold(),
+        profile.name.bright_yellow().bold()
+    );
     Ok(())
 }
 

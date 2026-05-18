@@ -1,6 +1,6 @@
 use colored::Colorize;
 
-pub fn print_banner() {
+pub fn print_banner(active_realm: Option<&str>) {
     let banner = r#"
    ██████╗ ██████╗ ██╗███╗   ██╗
    ██╔═══██╗██╔══██╗██║████╗  ██║
@@ -10,68 +10,93 @@ pub fn print_banner() {
     ╚═════╝ ╚═════╝ ╚═╝╚═╝  ╚═══╝
     "#;
 
-    println!("{}", banner.cyan().bold());
+    println!("{}", banner.bright_yellow().bold());
     println!(
         "{}",
-        "╔════════════════════════════════════════════════════════════╗".bright_blue()
+        "╔══════════════════════════════════════════════════════════════╗".bright_blue()
     );
     println!(
-        "║ {} │",
-        "Developer Workstation Snapshot & Restore Manager"
-            .white()
+        "║ {} ║",
+        "  Allfather of the dev workstation — see, capture, restore   "
+            .bright_white()
             .bold()
     );
-    let version_line = format!("v{} — Fast • Secure • Reliable", env!("CARGO_PKG_VERSION"));
-    println!("║ {} │", version_line.bright_green());
+    let version_line = format!(
+        "  v{}  ·  ᚱ from Hliðskjálf, all nine realms are seen.    ",
+        env!("CARGO_PKG_VERSION")
+    );
+    println!("║ {} ║", version_line.bright_green());
     println!(
         "{}",
-        "╚════════════════════════════════════════════════════════════╝".bright_blue()
+        "╚══════════════════════════════════════════════════════════════╝".bright_blue()
     );
+
+    match active_realm {
+        Some(name) => {
+            println!(
+                "  {}  bound realm: {}",
+                "●".bright_green().bold(),
+                name.bright_yellow().bold()
+            );
+        }
+        None => {
+            println!(
+                "  {}  no realm bound — run {} to forge or bind one",
+                "○".dimmed(),
+                "odin asgard".cyan().bold()
+            );
+        }
+    }
     println!();
 
-    println!("{}", "📋 Commands:".yellow().bold());
+    println!("{}", "  ◈ Realms (commands)".bright_yellow().bold());
     println!();
 
     let commands = vec![
-        ("Snapshot", "Capture current workstation state"),
-        ("Restore", "Restore from saved snapshots"),
-        ("Sync", "Push/pull snapshots to GitHub"),
-        ("Update", "Check for and install updates"),
-        ("Doctor", "Diagnose system health"),
-        ("Diff", "Compare current vs saved state"),
-        ("Dashboard", "Interactive status overview"),
-        ("Config", "Configure GitHub integration"),
-        ("Ports", "List listening ports & processes"),
-        ("Kill", "Terminate process by port or PID"),
-        ("Ps", "Interactive process dashboard (htop-style)"),
-        ("Export", "Export snapshots"),
-        ("Init", "Initialize Odin"),
+        ("all-eye", "Hliðskjálf — interactive overview", "ᚢ"),
+        ("asgard", "Profile realm — selector + editor", "ᚨ"),
+        ("snapshot", "Capture this realm into the vault", "ᛒ"),
+        ("restore", "Bind this realm to the vault", "ᛞ"),
+        ("sync", "Cross the Bifrost — push to GitHub", "ᛯ"),
+        ("update", "Renew Mjölnir — install updates", "ᛗ"),
+        ("doctor", "Divine broken paths and tools", "ᛟ"),
+        ("diff", "Compare realm to vault", "ᛜ"),
+        ("ports", "List bound bindings", "ᛇ"),
+        ("freeport", "Sever a binding (was `kill`)", "ᚹ"),
+        ("ps", "Watch the host of processes", "ᛉ"),
+        ("config", "Configure the Bifrost (GitHub)", "ᛏ"),
+        ("init", "Forge a fresh vault", "ᚷ"),
     ];
 
-    for (cmd, desc) in commands {
-        let padded = format!("{:<12}", cmd);
-        println!("  {} {}", padded.cyan().bold(), desc.white());
+    for (cmd, desc, rune) in commands {
+        let padded = format!("{:<10}", cmd);
+        println!(
+            "  {}  {} {}",
+            rune.bright_yellow(),
+            padded.cyan().bold(),
+            desc.white()
+        );
     }
 
     println!();
-    println!("{}", "🚀 Get Started:".yellow().bold());
+    println!("{}", "  🜉 Get started".bright_yellow().bold());
     println!(
-        "  odin snapshot       {} Create your first snapshot",
+        "    odin all-eye        {} ascend to Hliðskjálf",
         "→".bright_green()
     );
     println!(
-        "  odin ports          {} See listening ports",
+        "    odin asgard         {} enter the profile realm",
         "→".bright_green()
     );
     println!(
-        "  odin ps             {} Monitor processes",
+        "    odin snapshot       {} capture this realm",
         "→".bright_green()
     );
-    println!("  odin --help         {} More info", "→".bright_green());
+    println!("    odin --help         {} all runes", "→".bright_green());
     println!();
     println!(
         "{}",
-        "📖 Documentation: https://github.com/AsimAftab/Project-Odin".bright_blue()
+        "  ᚱ Lore: https://github.com/AsimAftab/Project-Odin".bright_blue()
     );
     println!();
 }
