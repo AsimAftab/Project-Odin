@@ -7,7 +7,9 @@ use colored::Colorize;
 use dialoguer::{Confirm, FuzzySelect, Input, Select};
 use indicatif::{ProgressBar, ProgressStyle};
 
-use crate::asgard::profile::{validate_name, BrowserEntry, Profile, StartupApp, WindowState};
+use crate::asgard::profile::{
+    validate_name, BrowserEntry, LayoutPreset, Profile, StartupApp, WindowLayout, WindowState,
+};
 use crate::asgard::store::AsgardStore;
 use crate::integrations::launcher;
 
@@ -59,6 +61,52 @@ pub async fn activate(odin_dir: &Path, name: &str) -> Result<ActivationReport> {
             Ok(()) => report.started.push(label),
             Err(e) => report.failed.push((label, first_line(&e.to_string()))),
         }
+    }
+
+    let layouts_to_apply: Vec<_> = profile
+        .startup_apps
+        .iter()
+        .filter(|app| app.layout.is_some())
+        .map(|app| {
+            (
+                app.name.clone(),
+                app.command.clone(),
+                app.layout.clone().unwrap(),
+            )
+        })
+        .collect();
+
+    if !layouts_to_apply.is_empty() {
+        let spinner = ProgressBar::new_spinner();
+        if let Ok(style) = ProgressStyle::with_template("  {spinner:.yellow} {msg}") {
+            spinner.set_style(style);
+        }
+        spinner.enable_steady_tick(std::time::Duration::from_millis(80));
+        spinner.set_message("applying window layouts (waiting for apps to start)...");
+
+        for _ in 0..15 {
+            tokio::time::sleep(tokio::time::Duration::from_millis(400)).await;
+            let mut all_done = true;
+            for (app_name, command, layout) in &layouts_to_apply {
+                let exe_name = std::path::Path::new(command)
+                    .file_name()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or(command);
+
+                // Try exe name
+                if crate::integrations::window_manager::apply_layout(exe_name, layout).is_err() {
+                    // Fallback to app name (like "Calculator")
+                    if crate::integrations::window_manager::apply_layout(app_name, layout).is_err()
+                    {
+                        all_done = false;
+                    }
+                }
+            }
+            if all_done {
+                break;
+            }
+        }
+        spinner.finish_and_clear();
     }
 
     Ok(report)
@@ -375,12 +423,16 @@ async fn prompt_via_installed_picker() -> Result<Option<StartupApp>> {
     };
     let chosen = &apps[idx];
 
+    let window = prompt_window_state()?;
+    let layout = prompt_window_layout()?;
+
     Ok(Some(StartupApp {
         name: chosen.name.clone(),
         command: format!("shell:AppsFolder\\{}", chosen.app_id),
         args: Vec::new(),
         cwd: None,
-        window: WindowState::Normal,
+        window,
+        layout,
     }))
 }
 
@@ -404,12 +456,14 @@ fn prompt_via_manual_command() -> Result<Option<StartupApp>> {
     let args: Vec<String> = shell_split(&raw_args);
     let cwd = prompt_optional_path("  cwd (blank for none)")?;
     let window = prompt_window_state()?;
+    let layout = prompt_window_layout()?;
     Ok(Some(StartupApp {
         name,
         command: cmd,
         args,
         cwd,
         window,
+        layout,
     }))
 }
 
@@ -425,6 +479,39 @@ fn prompt_window_state() -> Result<WindowState> {
         2 => WindowState::Maximized,
         _ => WindowState::Normal,
     })
+}
+
+fn prompt_window_layout() -> Result<Option<WindowLayout>> {
+    let layout_choices = [
+        "None (let OS decide)",
+        "Snap Left",
+        "Snap Right",
+        "Top Half",
+        "Bottom Half",
+        "Quadrant 1 (Top Right)",
+        "Quadrant 2 (Top Left)",
+        "Quadrant 3 (Bottom Left)",
+        "Quadrant 4 (Bottom Right)",
+    ];
+    let pick = Select::new()
+        .with_prompt("  window layout (snap position)")
+        .items(&layout_choices)
+        .default(0)
+        .interact()?;
+
+    let preset = match pick {
+        1 => Some(LayoutPreset::SnapLeft),
+        2 => Some(LayoutPreset::SnapRight),
+        3 => Some(LayoutPreset::TopHalf),
+        4 => Some(LayoutPreset::BottomHalf),
+        5 => Some(LayoutPreset::Quadrant1),
+        6 => Some(LayoutPreset::Quadrant2),
+        7 => Some(LayoutPreset::Quadrant3),
+        8 => Some(LayoutPreset::Quadrant4),
+        _ => None,
+    };
+
+    Ok(preset.map(WindowLayout::Preset))
 }
 
 async fn cached_installed_apps() -> Result<Vec<crate::integrations::start_apps::StartApp>> {
@@ -558,6 +645,7 @@ pub async fn edit_interactive(odin_dir: &Path, name: &str) -> Result<()> {
             "Add environment variable",
             "Edit description",
             "Set VS Code workspace",
+            "Edit a startup app",
             "Remove a startup app",
             "Remove a browser URL",
             "Remove an environment variable",
@@ -607,14 +695,33 @@ pub async fn edit_interactive(odin_dir: &Path, name: &str) -> Result<()> {
                 profile.vscode_workspace =
                     prompt_optional_path("VS Code workspace path (blank to clear)")?;
             }
-            5 => remove_indexed(&mut profile.startup_apps, "startup app", |a| {
+            5 => {
+                if profile.startup_apps.is_empty() {
+                    println!("{} no startup apps to edit", "·".dimmed());
+                } else {
+                    let mut display: Vec<String> = profile.startup_apps.iter().map(|a| format!("{} ({})", a.name, a.command)).collect();
+                    display.push("(cancel)".to_string());
+                    let pick_edit = Select::new()
+                        .with_prompt("Which startup app to edit?")
+                        .items(&display)
+                        .default(display.len() - 1)
+                        .interact()?;
+                    if pick_edit < profile.startup_apps.len() {
+                        let app = &mut profile.startup_apps[pick_edit];
+                        println!("  {} {}", "Editing".cyan(), display[pick_edit]);
+                        app.window = prompt_window_state()?;
+                        app.layout = prompt_window_layout()?;
+                    }
+                }
+            }
+            6 => remove_indexed(&mut profile.startup_apps, "startup app", |a| {
                 format!("{} ({})", a.name, a.command)
             })?,
-            6 => remove_indexed(&mut profile.browser_urls, "URL", |u| {
+            7 => remove_indexed(&mut profile.browser_urls, "URL", |u| {
                 format!("{} ({})", u.name, u.url)
             })?,
-            7 => remove_env_var(&mut profile.env)?,
-            8 => {
+            8 => remove_env_var(&mut profile.env)?,
+            9 => {
                 if profile == original {
                     println!("  {}  no changes", "·".dimmed());
                 } else {
@@ -689,17 +796,23 @@ fn print_profile_overview(p: &Profile) {
                 format!(" {}", a.args.join(" "))
             };
             let win = match a.window {
-                WindowState::Normal => "",
-                WindowState::Minimized => "  [min]",
-                WindowState::Maximized => "  [max]",
+                WindowState::Normal => "".to_string(),
+                WindowState::Minimized => "  [min]".to_string(),
+                WindowState::Maximized => "  [max]".to_string(),
+            };
+            let lay = match &a.layout {
+                Some(WindowLayout::Preset(p)) => format!("  [{:?}]", p),
+                Some(WindowLayout::Bounds { .. }) => "  [bounds]".to_string(),
+                None => "".to_string(),
             };
             println!(
-                "          {}  {}  {}{}{}",
+                "          {}  {}  {}{}{}{}",
                 format!("{:>2}.", i + 1).dimmed(),
                 a.name.bright_blue(),
                 a.command,
                 extras.dimmed(),
-                win.dimmed()
+                win.dimmed(),
+                lay.dimmed()
             );
         }
     }

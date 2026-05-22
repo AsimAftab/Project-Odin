@@ -6,6 +6,7 @@ pub mod environment;
 pub mod git;
 pub mod history;
 pub mod machine;
+pub mod net;
 pub mod package;
 pub mod plugin;
 pub mod process;

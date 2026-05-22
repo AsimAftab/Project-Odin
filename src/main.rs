@@ -51,6 +51,7 @@ async fn main() -> Result<()> {
         Some(Commands::Deactivate(args)) => commands::deactivate::run(ctx, args).await,
         Some(Commands::Profile(args)) => commands::profile::run(ctx, args).await,
         Some(Commands::Current(args)) => commands::current::run(ctx, args).await,
+        Some(Commands::Net(args)) => commands::net::run(ctx, args).await,
         None => {
             let active = crate::asgard::store::AsgardStore::new(ctx.odin_dir())
                 .load_state()

@@ -11,6 +11,7 @@ pub mod export;
 pub mod freeport;
 pub mod history;
 pub mod init;
+pub mod net;
 pub mod plugin;
 pub mod ports;
 pub mod profile;

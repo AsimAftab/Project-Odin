@@ -101,6 +101,7 @@ mod tests {
             args: args.iter().map(|s| s.to_string()).collect(),
             cwd: cwd.map(|s| s.to_string()),
             window,
+            layout: None,
         }
     }
 

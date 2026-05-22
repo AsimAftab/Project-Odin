@@ -27,6 +27,32 @@ pub struct StartupApp {
     pub cwd: Option<String>,
     #[serde(default)]
     pub window: WindowState,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub layout: Option<WindowLayout>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(untagged)]
+pub enum WindowLayout {
+    Preset(LayoutPreset),
+    Bounds {
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+    },
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub enum LayoutPreset {
+    SnapLeft,
+    SnapRight,
+    TopHalf,
+    BottomHalf,
+    Quadrant1,
+    Quadrant2,
+    Quadrant3,
+    Quadrant4,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -190,6 +216,7 @@ mod tests {
                 args: vec![".".into()],
                 cwd: Some("C:\\repos".into()),
                 window: WindowState::Maximized,
+                layout: None,
             }],
             vscode_workspace: Some("C:\\repos\\backend.code-workspace".into()),
             browser_urls: vec![BrowserEntry::new("docs", "https://example.com")],

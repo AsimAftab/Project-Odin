@@ -9,4 +9,5 @@ pub mod powershell;
 pub mod process;
 pub mod start_apps;
 pub mod vscode;
+pub mod window_manager;
 pub mod windows;

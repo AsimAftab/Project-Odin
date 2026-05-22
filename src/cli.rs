@@ -69,6 +69,8 @@ pub enum Commands {
     Profile(ProfileArgs),
     /// Show the bound realm and recent bindings.
     Current(CurrentArgs),
+    /// Munin watches the network — test connectivity to developer services.
+    Net(NetArgs),
 }
 
 #[derive(Debug, Args)]
@@ -299,3 +301,16 @@ pub struct FreeportArgs {
 
 #[derive(Debug, Args)]
 pub struct PsArgs {}
+
+#[derive(Debug, Args)]
+pub struct NetArgs {
+    #[arg(long, help = "Output as JSON")]
+    pub json: bool,
+
+    #[arg(
+        long,
+        default_value = "",
+        help = "Comma-separated list of targets to test (e.g. github.com,npmjs.org)"
+    )]
+    pub target: String,
+}

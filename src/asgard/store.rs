@@ -144,6 +144,7 @@ mod tests {
                 args: vec![],
                 cwd: None,
                 window: WindowState::Normal,
+                layout: None,
             }],
             vscode_workspace: None,
             browser_urls: vec![],
