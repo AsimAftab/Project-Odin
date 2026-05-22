@@ -699,7 +699,11 @@ pub async fn edit_interactive(odin_dir: &Path, name: &str) -> Result<()> {
                 if profile.startup_apps.is_empty() {
                     println!("{} no startup apps to edit", "·".dimmed());
                 } else {
-                    let mut display: Vec<String> = profile.startup_apps.iter().map(|a| format!("{} ({})", a.name, a.command)).collect();
+                    let mut display: Vec<String> = profile
+                        .startup_apps
+                        .iter()
+                        .map(|a| format!("{} ({})", a.name, a.command))
+                        .collect();
                     display.push("(cancel)".to_string());
                     let pick_edit = Select::new()
                         .with_prompt("Which startup app to edit?")
