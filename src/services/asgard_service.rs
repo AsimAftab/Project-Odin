@@ -511,7 +511,64 @@ fn prompt_window_layout() -> Result<Option<WindowLayout>> {
         _ => None,
     };
 
-    Ok(preset.map(WindowLayout::Preset))
+    let Some(preset) = preset else {
+        return Ok(None);
+    };
+
+    let monitor = prompt_layout_monitor()?;
+    if monitor <= 1 {
+        Ok(Some(WindowLayout::Preset(preset)))
+    } else {
+        Ok(Some(WindowLayout::TargetedPreset { preset, monitor }))
+    }
+}
+
+fn prompt_layout_monitor() -> Result<u32> {
+    let monitors = match crate::integrations::window_manager::list_display_monitors() {
+        Ok(monitors) => monitors,
+        Err(e) => {
+            println!(
+                "  {} couldn't detect monitors ({}); using primary monitor",
+                "!".yellow(),
+                first_line(&e.to_string()).dimmed()
+            );
+            return Ok(1);
+        }
+    };
+
+    if monitors.len() <= 1 {
+        return Ok(1);
+    }
+
+    let choices: Vec<String> = monitors
+        .iter()
+        .map(|monitor| {
+            let primary = if monitor.is_primary { " primary" } else { "" };
+            let device = if monitor.device_name.is_empty() {
+                String::new()
+            } else {
+                format!(" {}", monitor.device_name)
+            };
+            format!(
+                "Display {}{} - {}{} ({}x{} at {},{})",
+                monitor.index,
+                primary,
+                monitor.name,
+                device,
+                monitor.width,
+                monitor.height,
+                monitor.left,
+                monitor.top
+            )
+        })
+        .collect();
+    let pick = Select::new()
+        .with_prompt("  target monitor")
+        .items(&choices)
+        .default(0)
+        .interact()?;
+
+    Ok(monitors[pick].index)
 }
 
 async fn cached_installed_apps() -> Result<Vec<crate::integrations::start_apps::StartApp>> {
@@ -806,6 +863,9 @@ fn print_profile_overview(p: &Profile) {
             };
             let lay = match &a.layout {
                 Some(WindowLayout::Preset(p)) => format!("  [{:?}]", p),
+                Some(WindowLayout::TargetedPreset { preset, monitor }) => {
+                    format!("  [{preset:?} monitor {monitor}]")
+                }
                 Some(WindowLayout::Bounds { .. }) => "  [bounds]".to_string(),
                 None => "".to_string(),
             };

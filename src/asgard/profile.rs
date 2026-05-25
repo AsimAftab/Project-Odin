@@ -35,6 +35,11 @@ pub struct StartupApp {
 #[serde(untagged)]
 pub enum WindowLayout {
     Preset(LayoutPreset),
+    TargetedPreset {
+        preset: LayoutPreset,
+        #[serde(default = "default_monitor")]
+        monitor: u32,
+    },
     Bounds {
         x: i32,
         y: i32,
@@ -53,6 +58,10 @@ pub enum LayoutPreset {
     Quadrant2,
     Quadrant3,
     Quadrant4,
+}
+
+fn default_monitor() -> u32 {
+    1
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -289,5 +298,91 @@ browser_urls:
     #[test]
     fn window_state_default() {
         assert_eq!(WindowState::default(), WindowState::Normal);
+    }
+
+    #[test]
+    fn layout_accepts_legacy_preset() {
+        let yaml = r#"
+name: x
+startup_apps:
+  - name: terminal
+    command: wt.exe
+    layout: SnapRight
+"#;
+        let p: Profile = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(
+            p.startup_apps[0].layout,
+            Some(WindowLayout::Preset(LayoutPreset::SnapRight))
+        );
+    }
+
+    #[test]
+    fn layout_accepts_targeted_preset() {
+        let yaml = r#"
+name: x
+startup_apps:
+  - name: terminal
+    command: wt.exe
+    layout:
+      preset: SnapLeft
+      monitor: 2
+"#;
+        let p: Profile = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(
+            p.startup_apps[0].layout,
+            Some(WindowLayout::TargetedPreset {
+                preset: LayoutPreset::SnapLeft,
+                monitor: 2
+            })
+        );
+
+        let out = serde_yaml::to_string(&p).unwrap();
+        let back: Profile = serde_yaml::from_str(&out).unwrap();
+        assert_eq!(p, back);
+    }
+
+    #[test]
+    fn layout_targeted_preset_defaults_to_primary() {
+        let yaml = r#"
+name: x
+startup_apps:
+  - name: terminal
+    command: wt.exe
+    layout:
+      preset: TopHalf
+"#;
+        let p: Profile = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(
+            p.startup_apps[0].layout,
+            Some(WindowLayout::TargetedPreset {
+                preset: LayoutPreset::TopHalf,
+                monitor: 1
+            })
+        );
+    }
+
+    #[test]
+    fn layout_bounds_stay_absolute() {
+        let yaml = r#"
+name: x
+startup_apps:
+  - name: terminal
+    command: wt.exe
+    layout:
+      x: 1920
+      y: 40
+      width: 960
+      height: 1000
+"#;
+        let p: Profile = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(
+            p.startup_apps[0].layout,
+            Some(WindowLayout::Bounds {
+                x: 1920,
+                y: 40,
+                width: 960,
+                height: 1000
+            })
+        );
     }
 }
