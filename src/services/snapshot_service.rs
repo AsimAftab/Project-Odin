@@ -12,11 +12,20 @@ use crate::utils::paths;
 
 pub struct SnapshotService {
     store: SnapshotStore,
+    keep_last: Option<usize>,
 }
 
 impl SnapshotService {
     pub fn new(store: SnapshotStore) -> Self {
-        Self { store }
+        Self {
+            store,
+            keep_last: None,
+        }
+    }
+
+    pub fn with_keep_last(mut self, keep_last: Option<usize>) -> Self {
+        self.keep_last = keep_last;
+        self
     }
 
     pub async fn capture(
@@ -57,6 +66,10 @@ impl SnapshotService {
             total_packages: packages.packages.len(),
             tag,
         })?;
+
+        if let Some(keep) = self.keep_last {
+            history_service.cleanup_old_snapshots(keep)?;
+        }
 
         Ok(machine)
     }

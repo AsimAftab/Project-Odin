@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OdinConfig {
     pub storage_dir: Option<String>,
+    pub snapshot: SnapshotConfig,
     pub restore: RestoreConfig,
     pub sync: SyncConfig,
     pub github: GitHubConfig,
@@ -12,6 +13,7 @@ impl Default for OdinConfig {
     fn default() -> Self {
         Self {
             storage_dir: None,
+            snapshot: SnapshotConfig::default(),
             restore: RestoreConfig {
                 package_managers: vec![
                     "winget".to_string(),
@@ -34,6 +36,13 @@ impl Default for OdinConfig {
             },
         }
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct SnapshotConfig {
+    /// Maximum number of historical snapshots to keep. Oldest are pruned automatically.
+    /// If unset, snapshots accumulate indefinitely.
+    pub keep_last: Option<usize>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

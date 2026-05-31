@@ -36,7 +36,14 @@ pub async fn detect_managers() -> Vec<PackageManagerInfo> {
 
 pub async fn list_packages() -> Result<PackageSnapshot> {
     let mut packages = Vec::new();
-    for result in [list_winget().await, list_choco().await, list_scoop().await] {
+    for result in [
+        list_winget().await,
+        list_choco().await,
+        list_scoop().await,
+        list_npm_globals().await,
+        list_pip_globals().await,
+        list_cargo_installs().await,
+    ] {
         match result {
             Ok(mut manager_packages) => packages.append(&mut manager_packages),
             Err(error) => eprintln!("warning: package manager probe failed: {error:#}"),
@@ -153,6 +160,109 @@ async fn list_scoop() -> Result<Vec<InstalledPackage>> {
             })
         })
         .collect();
+    Ok(packages)
+}
+
+async fn list_npm_globals() -> Result<Vec<InstalledPackage>> {
+    let Some(npm) = executable("npm") else {
+        return Ok(Vec::new());
+    };
+    let output = process::capture(&npm, &["list", "-g", "--depth=0", "--json"]).await?;
+    if output.code != 0 || output.stdout.is_empty() {
+        return Ok(Vec::new());
+    }
+    let json: Value = serde_json::from_str(&output.stdout).unwrap_or(Value::Null);
+    let deps = json
+        .get("dependencies")
+        .and_then(Value::as_object)
+        .cloned()
+        .unwrap_or_default();
+    Ok(deps
+        .into_iter()
+        .map(|(name, info)| {
+            let version = info
+                .get("version")
+                .and_then(Value::as_str)
+                .map(ToOwned::to_owned);
+            InstalledPackage {
+                id: name.clone(),
+                name: name.clone(),
+                version,
+                source: PackageManager::Npm,
+                install_command: Some(format!("npm install -g {name}")),
+            }
+        })
+        .collect())
+}
+
+async fn list_pip_globals() -> Result<Vec<InstalledPackage>> {
+    // Try pip3 first, fall back to pip.
+    let pip = if process::command_exists("pip3") {
+        "pip3"
+    } else if process::command_exists("pip") {
+        "pip"
+    } else {
+        return Ok(Vec::new());
+    };
+    let output = process::capture(pip, &["list", "--format=json"]).await?;
+    if output.code != 0 || output.stdout.is_empty() {
+        return Ok(Vec::new());
+    }
+    let json: Value = serde_json::from_str(&output.stdout).unwrap_or(Value::Null);
+    Ok(json
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|pkg| {
+            let name = pkg.get("name")?.as_str()?.to_string();
+            let version = pkg
+                .get("version")
+                .and_then(Value::as_str)
+                .map(ToOwned::to_owned);
+            Some(InstalledPackage {
+                id: name.clone(),
+                name: name.clone(),
+                version,
+                source: PackageManager::Pip,
+                install_command: Some(format!("pip install {name}")),
+            })
+        })
+        .collect())
+}
+
+async fn list_cargo_installs() -> Result<Vec<InstalledPackage>> {
+    let Some(cargo) = executable("cargo") else {
+        return Ok(Vec::new());
+    };
+    let output = process::capture(&cargo, &["install", "--list"]).await?;
+    if output.code != 0 || output.stdout.is_empty() {
+        return Ok(Vec::new());
+    }
+    // Output format:
+    //   ripgrep v13.0.0:
+    //       rg
+    //   cargo-edit v0.12.2:
+    //       cargo-add
+    //       cargo-rm
+    // Lines ending with ':' are package headers; indented lines are binaries.
+    let mut packages = Vec::new();
+    for line in output.stdout.lines() {
+        if line.starts_with(' ') || line.starts_with('\t') {
+            continue; // binary name line — skip
+        }
+        let header = line.trim_end_matches(':');
+        // Split "name vX.Y.Z" — version token starts with 'v' followed by a digit.
+        if let Some((name, version_raw)) = header.rsplit_once(' ') {
+            let version = version_raw.trim_start_matches('v').to_string();
+            packages.push(InstalledPackage {
+                id: name.to_string(),
+                name: name.to_string(),
+                version: Some(version),
+                source: PackageManager::Cargo,
+                install_command: Some(format!("cargo install {name}")),
+            });
+        }
+    }
     Ok(packages)
 }
 

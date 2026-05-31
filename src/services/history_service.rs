@@ -125,7 +125,6 @@ impl HistoryService {
         Ok(())
     }
 
-    #[allow(dead_code)]
     pub fn cleanup_old_snapshots(&self, keep_count: usize) -> Result<u32> {
         let history_file = self.odin_dir.join(".history");
 
@@ -134,24 +133,38 @@ impl HistoryService {
         }
 
         let content = fs::read_to_string(&history_file)?;
-
         let mut index: HistoryIndex = serde_json::from_str(&content)?;
-
         let original_count = index.snapshots.len();
 
-        if original_count > keep_count {
-            // Remove oldest snapshots
-            let to_remove = original_count - keep_count;
-            index.snapshots.truncate(keep_count);
-
-            let content = serde_json::to_string_pretty(&index)?;
-
-            fs::write(&history_file, content)?;
-
-            Ok(to_remove as u32)
-        } else {
-            Ok(0)
+        if original_count <= keep_count {
+            return Ok(0);
         }
+
+        // Snapshots are sorted newest-first; collect IDs of the oldest ones to drop.
+        let ids_to_remove: Vec<String> = index.snapshots[keep_count..]
+            .iter()
+            .map(|m| m.id.clone())
+            .collect();
+
+        index.snapshots.truncate(keep_count);
+
+        // Drop any cached diffs that reference a removed snapshot.
+        index
+            .diffs
+            .retain(|k, _| !ids_to_remove.iter().any(|id| k.contains(id.as_str())));
+
+        fs::write(&history_file, serde_json::to_string_pretty(&index)?)?;
+
+        // Delete the history/<id>/ directories from disk.
+        let history_dir = self.odin_dir.join("history");
+        for id in &ids_to_remove {
+            let dir = history_dir.join(id);
+            if dir.exists() {
+                fs::remove_dir_all(&dir)?;
+            }
+        }
+
+        Ok(ids_to_remove.len() as u32)
     }
 
     fn compute_diff(&self, from_id: &str, to_id: &str) -> Result<Vec<EnvironmentChange>> {

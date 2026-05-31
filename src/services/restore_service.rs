@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use colored::Colorize;
 use indicatif::{ProgressBar, ProgressStyle};
 
-use crate::integrations::{git_cli, process, vscode as vscode_integration};
+use crate::integrations::{git_cli, powershell, process, vscode as vscode_integration};
 use crate::models::environment::EnvironmentSnapshot;
 use crate::models::git::GitConfigSnapshot;
 use crate::models::package::{InstalledPackage, PackageSnapshot};
@@ -216,7 +216,7 @@ async fn apply_environment(environment: &EnvironmentSnapshot) -> Result<()> {
         if variable.name.eq_ignore_ascii_case("PATH") {
             continue;
         }
-        process::checked("setx", &[&variable.name, &variable.value]).await?;
+        powershell::set_user_env_var(&variable.name, &variable.value).await?;
         applied += 1;
     }
     if applied > 0 {
@@ -233,7 +233,7 @@ async fn apply_environment(environment: &EnvironmentSnapshot) -> Result<()> {
         .collect::<Vec<_>>()
         .join(";");
     if !path_value.is_empty() {
-        process::checked("setx", &["Path", &path_value]).await?;
+        powershell::set_user_env_var("Path", &path_value).await?;
         println!(
             "  {}  PATH bound — {} entries",
             "✓".green().bold(),

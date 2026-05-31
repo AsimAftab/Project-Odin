@@ -6,6 +6,9 @@ pub enum PackageManager {
     Winget,
     Chocolatey,
     Scoop,
+    Npm,
+    Pip,
+    Cargo,
     Manual,
     Unknown,
 }

@@ -67,6 +67,17 @@ pub async fn profile_path_lossy() -> Option<PathBuf> {
     }
 }
 
+pub async fn set_user_env_var(name: &str, value: &str) -> Result<()> {
+    let Some(exe) = executable() else {
+        anyhow::bail!("PowerShell not found; cannot set environment variable '{name}'");
+    };
+    // Uses the .NET API directly — no 1024-char truncation, takes effect in new
+    // processes without requiring a shell restart (unlike setx).
+    let script = format!("[Environment]::SetEnvironmentVariable({name:?}, {value:?}, 'User')");
+    process::checked(&exe, &["-NoProfile", "-Command", &script]).await?;
+    Ok(())
+}
+
 fn powershell_candidates() -> Vec<PathBuf> {
     let mut candidates = Vec::new();
     if let Ok(program_files) = std::env::var("ProgramFiles") {

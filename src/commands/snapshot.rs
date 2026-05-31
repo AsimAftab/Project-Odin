@@ -15,6 +15,7 @@ pub async fn run(ctx: AppContext, args: SnapshotArgs) -> Result<()> {
     spinner.enable_steady_tick(std::time::Duration::from_millis(80));
     spinner.set_message("Hugin & Munin survey the realm");
     let machine = SnapshotService::new(store.clone())
+        .with_keep_last(ctx.config().snapshot.keep_last)
         .capture(args.include_machine_env, args.tag.clone())
         .await?;
     spinner.finish_and_clear();
