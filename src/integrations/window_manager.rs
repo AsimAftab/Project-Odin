@@ -141,7 +141,6 @@ unsafe extern "system" fn enum_window_proc(hwnd: HWND, lparam: LPARAM) -> BOOL {
 
 /// Find a visible window for the given target and apply the layout.
 /// `sys` should be a pre-refreshed `System` instance for process lookups.
-
 unsafe extern "system" fn enum_monitor_proc(
     monitor: HMONITOR,
     _hdc: HDC,
