@@ -129,6 +129,11 @@ async fn activate_named(odin_dir: &Path, name: &str, json: bool) -> Result<()> {
                 .iter()
                 .map(|(label, err)| serde_json::json!({"target": label, "error": err}))
                 .collect::<Vec<_>>(),
+            "layout_applied": report.layout_applied,
+            "layout_failed": report.layout_failed
+                .iter()
+                .map(|(label, err)| serde_json::json!({"target": label, "error": err}))
+                .collect::<Vec<_>>(),
         });
         println!("{}", serde_json::to_string_pretty(&payload)?);
     } else {

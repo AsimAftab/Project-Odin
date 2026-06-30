@@ -2,6 +2,9 @@ use anyhow::{Context, Result};
 use sysinfo::System;
 use windows::core::PCWSTR;
 use windows::Win32::Foundation::{BOOL, HWND, LPARAM, RECT};
+use windows::Win32::Graphics::Dwm::{
+    DwmGetWindowAttribute, DWMWA_CLOAKED, DWMWA_EXTENDED_FRAME_BOUNDS,
+};
 use windows::Win32::Graphics::Gdi::{
     EnumDisplayDevicesW, EnumDisplayMonitors, GetMonitorInfoW, DISPLAY_DEVICEW, HDC, HMONITOR,
     MONITORINFO, MONITORINFOEXW,
@@ -10,8 +13,9 @@ use windows::Win32::UI::HiDpi::{
     SetProcessDpiAwarenessContext, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    EnumWindows, GetSystemMetrics, GetWindowTextW, GetWindowThreadProcessId, IsWindowVisible,
-    SetWindowPos, HWND_TOP, SM_CXSCREEN, SM_CYSCREEN, SWP_NOZORDER, SWP_SHOWWINDOW,
+    EnumWindows, GetSystemMetrics, GetWindowRect, GetWindowTextW, GetWindowThreadProcessId,
+    IsWindowVisible, SetWindowPos, ShowWindow, HWND_TOP, SM_CXSCREEN, SM_CYSCREEN, SWP_NOZORDER,
+    SWP_SHOWWINDOW, SW_RESTORE,
 };
 
 use crate::asgard::profile::{LayoutPreset, WindowLayout};
@@ -82,17 +86,45 @@ unsafe extern "system" fn enum_window_proc(hwnd: HWND, lparam: LPARAM) -> BOOL {
         return BOOL(1);
     }
 
-    search.sys.refresh_processes();
+    // Windows 10/11 UWP apps often have "cloaked" windows that are marked as visible
+    // but aren't actually drawn on screen (e.g. splash screens or virtual desktop shadows).
+    // We must skip these, otherwise we might snap a hidden window and think we succeeded.
+    let mut cloaked: u32 = 0;
+    if DwmGetWindowAttribute(
+        hwnd,
+        DWMWA_CLOAKED,
+        &mut cloaked as *mut _ as *mut std::ffi::c_void,
+        std::mem::size_of::<u32>() as u32,
+    )
+    .is_ok()
+        && cloaked != 0
+    {
+        return BOOL(1); // continue
+    }
+
+    // Process list was refreshed before enumeration — no refresh_processes() here.
     if let Some(process) = search.sys.process(sysinfo::Pid::from_u32(pid)) {
         let exe_name = process.name().to_string().to_lowercase();
         let target_lower = search.target_exe.to_lowercase();
         let target_with_ext = format!("{}.exe", target_lower);
 
+        // Match against process name (e.g. "calculatorapp.exe")
         if exe_name == target_lower || exe_name == target_with_ext {
             search.found_hwnd = Some(hwnd);
             return BOOL(0); // stop enumerating
         }
 
+        // Match against exe path stem (e.g. "CalculatorApp" from full path)
+        if let Some(exe_path) = process.exe() {
+            if let Some(stem) = exe_path.file_stem().and_then(|s| s.to_str()) {
+                if stem.to_lowercase() == target_lower {
+                    search.found_hwnd = Some(hwnd);
+                    return BOOL(0);
+                }
+            }
+        }
+
+        // Match against window title (e.g. "Calculator" in the title bar)
         let mut title_buf = [0u16; 512];
         let len = GetWindowTextW(hwnd, &mut title_buf);
         if len > 0 {
@@ -106,6 +138,9 @@ unsafe extern "system" fn enum_window_proc(hwnd: HWND, lparam: LPARAM) -> BOOL {
 
     BOOL(1) // continue
 }
+
+/// Find a visible window for the given target and apply the layout.
+/// `sys` should be a pre-refreshed `System` instance for process lookups.
 
 unsafe extern "system" fn enum_monitor_proc(
     monitor: HMONITOR,
@@ -229,12 +264,23 @@ fn display_device_number(device_name: &str) -> Option<u32> {
         .and_then(|(_, n)| n.parse::<u32>().ok())
 }
 
-pub fn apply_layout(exe_name: &str, layout: &WindowLayout) -> Result<()> {
+/// Like `apply_layout`, but accepts a pre-existing `System` to avoid re-creating
+/// it on every call in a retry loop. The caller should create one `System` and
+/// pass it to every invocation.
+pub fn apply_layout_with_system(
+    target: &str,
+    layout: &WindowLayout,
+    sys: &mut System,
+) -> Result<()> {
     enable_per_monitor_dpi_awareness();
+
+    // Refresh the process list once before enumeration — not inside the callback.
+    sys.refresh_processes();
+
     let mut search = WindowSearch {
-        target_exe: exe_name.to_string(),
+        target_exe: target.to_string(),
         found_hwnd: None,
-        sys: System::new_all(),
+        sys: std::mem::take(sys),
     };
 
     unsafe {
@@ -245,23 +291,83 @@ pub fn apply_layout(exe_name: &str, layout: &WindowLayout) -> Result<()> {
         .ok();
     }
 
+    // Give the System back to the caller for reuse.
+    *sys = search.sys;
+
     let hwnd = match search.found_hwnd {
         Some(h) => h,
-        None => anyhow::bail!(
-            "could not find visible window for executable '{}'",
-            exe_name
-        ),
+        None => anyhow::bail!("could not find visible window for '{}'", target),
     };
 
     let monitors = ordered_monitors()?;
-    let (x, y, w, h) = resolve_layout(layout, &monitors);
+    let (mut x, mut y, mut w, mut h) = resolve_layout(layout, &monitors);
 
     unsafe {
+        // Windows 10/11 have invisible borders for resizing. `SetWindowPos` sets the *actual* bounds
+        // (including invisible borders), but `resolve_layout` returns the *visible* bounds.
+        // We calculate the delta by comparing `GetWindowRect` (actual) to `DWMWA_EXTENDED_FRAME_BOUNDS` (visible).
+        let mut actual_rect = RECT::default();
+        let mut visible_rect = RECT::default();
+        if GetWindowRect(hwnd, &mut actual_rect).is_ok()
+            && DwmGetWindowAttribute(
+                hwnd,
+                DWMWA_EXTENDED_FRAME_BOUNDS,
+                &mut visible_rect as *mut _ as *mut std::ffi::c_void,
+                std::mem::size_of::<RECT>() as u32,
+            )
+            .is_ok()
+        {
+            let left_border = visible_rect.left - actual_rect.left;
+            let right_border = actual_rect.right - visible_rect.right;
+            let bottom_border = actual_rect.bottom - visible_rect.bottom;
+            let top_border = visible_rect.top - actual_rect.top;
+
+            x -= left_border;
+            y -= top_border;
+            w += left_border + right_border;
+            h += top_border + bottom_border;
+        }
+
+        // Restore window if it is minimized/maximized before moving it
+        ShowWindow(hwnd, SW_RESTORE);
+
         SetWindowPos(hwnd, HWND_TOP, x, y, w, h, SWP_NOZORDER | SWP_SHOWWINDOW)
             .with_context(|| "failed to set window position")?;
     }
 
     Ok(())
+}
+
+/// Build a list of candidate search strings for a startup app. Tries the exe
+/// file name, then the stem (without .exe), then the app's friendly name.
+/// Deduplicates so the same target isn't tried twice.
+pub fn search_targets(app_name: &str, command: &str) -> Vec<String> {
+    let mut targets = Vec::with_capacity(3);
+    let path = std::path::Path::new(command);
+
+    // 1. File name from command (e.g. "wt.exe" from "C:\...\wt.exe")
+    if let Some(fname) = path.file_name().and_then(|s| s.to_str()) {
+        let lower = fname.to_lowercase();
+        if !targets.iter().any(|t: &String| t.to_lowercase() == lower) {
+            targets.push(fname.to_string());
+        }
+    }
+
+    // 2. Stem without extension (e.g. "wt" from "wt.exe")
+    if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
+        let lower = stem.to_lowercase();
+        if !targets.iter().any(|t: &String| t.to_lowercase() == lower) {
+            targets.push(stem.to_string());
+        }
+    }
+
+    // 3. Friendly app name (e.g. "Calculator")
+    let lower = app_name.to_lowercase();
+    if !targets.iter().any(|t: &String| t.to_lowercase() == lower) {
+        targets.push(app_name.to_string());
+    }
+
+    targets
 }
 
 fn resolve_layout(layout: &WindowLayout, monitors: &[MonitorWorkArea]) -> (i32, i32, i32, i32) {

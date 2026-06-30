@@ -16,7 +16,7 @@ use ratatui::{
     Frame, Terminal,
 };
 
-use crate::asgard::profile::{Profile, WindowState};
+use crate::asgard::profile::{LayoutPreset, Profile, WindowLayout, WindowState};
 use crate::asgard::state::RecentEntry;
 use crate::ui::theme::{ACTIVE, BIFROST, HEIM_GOLD, RUNE_BLUE, SELECTION_BG, SHADOW};
 use crate::utils::time;
@@ -601,6 +601,17 @@ fn draw_detail(f: &mut Frame, area: Rect, app: &App) {
                 ),
                 Span::styled(mark, Style::default().fg(SHADOW)),
             ]));
+            // Show layout configuration (snap position + monitor) if defined
+            if let Some(layout) = &a.layout {
+                lines.push(Line::from(vec![
+                    Span::styled("       ", Style::default()),
+                    Span::styled("⊞ ", Style::default().fg(BIFROST)),
+                    Span::styled(
+                        format_layout(layout),
+                        Style::default().fg(BIFROST).add_modifier(Modifier::ITALIC),
+                    ),
+                ]));
+            }
         }
     }
     lines.push(Line::from(""));
@@ -687,6 +698,36 @@ fn truncate(s: &str, max: usize) -> String {
         let mut out: String = s.chars().take(max.saturating_sub(1)).collect();
         out.push('…');
         out
+    }
+}
+
+fn format_layout(layout: &WindowLayout) -> String {
+    match layout {
+        WindowLayout::Preset(preset) => {
+            format!("{} · Monitor 1", format_preset(preset))
+        }
+        WindowLayout::TargetedPreset { preset, monitor } => {
+            format!("{} · Monitor {}", format_preset(preset), monitor)
+        }
+        WindowLayout::Bounds {
+            x,
+            y,
+            width,
+            height,
+        } => format!("Bounds {},{} {}×{}", x, y, width, height),
+    }
+}
+
+fn format_preset(preset: &LayoutPreset) -> String {
+    match preset {
+        LayoutPreset::SnapLeft => "Snap Left".into(),
+        LayoutPreset::SnapRight => "Snap Right".into(),
+        LayoutPreset::TopHalf => "Top Half".into(),
+        LayoutPreset::BottomHalf => "Bottom Half".into(),
+        LayoutPreset::Quadrant1 => "Quadrant 1 (Top Right)".into(),
+        LayoutPreset::Quadrant2 => "Quadrant 2 (Top Left)".into(),
+        LayoutPreset::Quadrant3 => "Quadrant 3 (Bottom Left)".into(),
+        LayoutPreset::Quadrant4 => "Quadrant 4 (Bottom Right)".into(),
     }
 }
 

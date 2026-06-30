@@ -19,6 +19,8 @@ pub struct ActivationReport {
     pub profile: String,
     pub started: Vec<String>,
     pub failed: Vec<(String, String)>,
+    pub layout_applied: Vec<String>,
+    pub layout_failed: Vec<(String, String)>,
 }
 
 pub async fn activate(odin_dir: &Path, name: &str) -> Result<ActivationReport> {
@@ -68,11 +70,9 @@ pub async fn activate(odin_dir: &Path, name: &str) -> Result<ActivationReport> {
         .iter()
         .filter(|app| app.layout.is_some())
         .map(|app| {
-            (
-                app.name.clone(),
-                app.command.clone(),
-                app.layout.clone().unwrap(),
-            )
+            let targets =
+                crate::integrations::window_manager::search_targets(&app.name, &app.command);
+            (app.name.clone(), targets, app.layout.clone().unwrap())
         })
         .collect();
 
@@ -84,29 +84,58 @@ pub async fn activate(odin_dir: &Path, name: &str) -> Result<ActivationReport> {
         spinner.enable_steady_tick(std::time::Duration::from_millis(80));
         spinner.set_message("applying window layouts (waiting for apps to start)...");
 
-        for _ in 0..15 {
-            tokio::time::sleep(tokio::time::Duration::from_millis(400)).await;
-            let mut all_done = true;
-            for (app_name, command, layout) in &layouts_to_apply {
-                let exe_name = std::path::Path::new(command)
-                    .file_name()
-                    .and_then(|s| s.to_str())
-                    .unwrap_or(command);
+        // Track which apps have been successfully laid out.
+        let mut done = vec![false; layouts_to_apply.len()];
 
-                // Try exe name
-                if crate::integrations::window_manager::apply_layout(exe_name, layout).is_err() {
-                    // Fallback to app name (like "Calculator")
-                    if crate::integrations::window_manager::apply_layout(app_name, layout).is_err()
+        // Single System instance, reused across all retries to avoid
+        // the expensive System::new_all() on every attempt.
+        let mut sys = sysinfo::System::new();
+
+        // Initial wait — give apps time to create their windows.
+        tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+
+        // Retry loop: 25 attempts × 500ms = ~12.5 seconds max after initial wait.
+        for _ in 0..25 {
+            let mut pending = false;
+            for (idx, (_app_name, targets, layout)) in layouts_to_apply.iter().enumerate() {
+                if done[idx] {
+                    continue;
+                }
+                let mut applied = false;
+                for target in targets {
+                    if crate::integrations::window_manager::apply_layout_with_system(
+                        target, layout, &mut sys,
+                    )
+                    .is_ok()
                     {
-                        all_done = false;
+                        applied = true;
+                        break;
                     }
                 }
+                if applied {
+                    done[idx] = true;
+                } else {
+                    pending = true;
+                }
             }
-            if all_done {
+            if !pending {
                 break;
             }
+            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
         }
+
         spinner.finish_and_clear();
+
+        // Record layout results in the report.
+        for (idx, (app_name, _, _)) in layouts_to_apply.iter().enumerate() {
+            if done[idx] {
+                report.layout_applied.push(app_name.clone());
+            } else {
+                report
+                    .layout_failed
+                    .push((app_name.clone(), "window not found after retries".into()));
+            }
+        }
     }
 
     Ok(report)
@@ -198,15 +227,29 @@ pub fn print_activation_report(report: &ActivationReport) {
             println!("      {} {}", "→".green(), w);
         }
     }
-    if !report.failed.is_empty() {
+    if !report.layout_applied.is_empty() {
+        println!(
+            "  {}  ⊞ layouts   ({})",
+            "·".dimmed(),
+            report.layout_applied.len().to_string().bright_blue().bold()
+        );
+        for name in &report.layout_applied {
+            println!("      {} {}", "→".green(), name);
+        }
+    }
+    if !report.failed.is_empty() || !report.layout_failed.is_empty() {
         println!();
+        let total = report.failed.len() + report.layout_failed.len();
         println!(
             "  {}  shattered    ({})",
             "✗".red().bold(),
-            report.failed.len().to_string().red().bold()
+            total.to_string().red().bold()
         );
         for (label, err) in &report.failed {
             println!("      {} {} — {}", "✗".red(), label, err.dimmed());
+        }
+        for (name, err) in &report.layout_failed {
+            println!("      {} layout: {} — {}", "✗".red(), name, err.dimmed());
         }
     }
     println!();
