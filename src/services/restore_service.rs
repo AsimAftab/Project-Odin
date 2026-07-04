@@ -3,19 +3,21 @@ use colored::Colorize;
 use indicatif::{ProgressBar, ProgressStyle};
 
 use crate::integrations::{git_cli, powershell, process, vscode as vscode_integration};
+use crate::models::config::RestoreConfig;
 use crate::models::environment::EnvironmentSnapshot;
 use crate::models::git::GitConfigSnapshot;
-use crate::models::package::{InstalledPackage, PackageSnapshot};
+use crate::models::package::{InstalledPackage, PackageManager, PackageSnapshot};
 use crate::models::vscode::VsCodeExtensionsSnapshot;
 use crate::services::storage::SnapshotStore;
 
 pub struct RestoreService {
     store: SnapshotStore,
+    config: RestoreConfig,
 }
 
 impl RestoreService {
-    pub fn new(store: SnapshotStore) -> Self {
-        Self { store }
+    pub fn new(store: SnapshotStore, config: RestoreConfig) -> Self {
+        Self { store, config }
     }
 
     pub async fn restore(&self, apply: bool, continue_on_error: bool) -> Result<()> {
@@ -24,6 +26,7 @@ impl RestoreService {
         let vscode = self.store.read_vscode().await?;
         let git = self.store.read_git().await?;
         run_restore(
+            &self.config,
             &packages,
             &environment,
             &vscode,
@@ -65,6 +68,7 @@ impl RestoreService {
             .await
             .with_context(|| format!("reading git config for snapshot {}", snapshot_id))?;
         run_restore(
+            &self.config,
             &packages,
             &environment,
             &vscode,
@@ -76,7 +80,33 @@ impl RestoreService {
     }
 }
 
+/// True if a package's source manager is enabled in `RestoreConfig`. Alias-aware
+/// (`choco` == `chocolatey`). `Manual`/`Unknown` packages can't be attributed to
+/// a manager, so they're always allowed (they only install if they carry a
+/// command anyway).
+pub fn source_enabled(source: &PackageManager, managers: &[String]) -> bool {
+    let aliases: &[&str] = match source {
+        PackageManager::Winget => &["winget"],
+        PackageManager::Chocolatey => &["chocolatey", "choco"],
+        PackageManager::Scoop => &["scoop"],
+        PackageManager::Npm => &["npm"],
+        PackageManager::Pip => &["pip"],
+        PackageManager::Cargo => &["cargo"],
+        PackageManager::Pipx => &["pipx"],
+        PackageManager::Pnpm => &["pnpm"],
+        PackageManager::Yarn => &["yarn"],
+        PackageManager::DotnetTool => &["dotnet", "dotnet-tool", "dotnettool"],
+        PackageManager::Go => &["go"],
+        PackageManager::Uv => &["uv"],
+        PackageManager::Manual | PackageManager::Unknown => return true,
+    };
+    managers
+        .iter()
+        .any(|m| aliases.iter().any(|a| m.eq_ignore_ascii_case(a)))
+}
+
 async fn run_restore(
+    config: &RestoreConfig,
     packages: &PackageSnapshot,
     environment: &EnvironmentSnapshot,
     vscode: &VsCodeExtensionsSnapshot,
@@ -85,35 +115,58 @@ async fn run_restore(
     continue_on_error: bool,
 ) -> Result<()> {
     let current = crate::integrations::package_managers::list_packages().await?;
-    restore_packages(packages, &current, apply, continue_on_error).await?;
-    restore_vscode(vscode, apply).await?;
-    restore_git(git, apply).await?;
+    restore_packages(config, packages, &current, apply, continue_on_error).await?;
 
-    if apply {
-        apply_environment(environment).await?;
+    if config.restore_vscode_extensions {
+        restore_vscode(vscode, apply).await?;
     } else {
         println!(
-            "  {}  would restore {} runes and {} PATH entries",
-            "·".yellow().bold(),
-            environment.user_variables.len().to_string().cyan().bold(),
-            environment.path_entries.len().to_string().cyan().bold()
+            "  {}  VS Code extensions skipped (disabled by config)",
+            "·".dimmed()
         );
     }
+
+    if config.restore_git_config {
+        restore_git(git, apply).await?;
+    } else {
+        println!(
+            "  {}  git config skipped (disabled by config)",
+            "·".dimmed()
+        );
+    }
+
+    apply_environment(config, environment, apply).await?;
     Ok(())
 }
 
 async fn restore_packages(
+    config: &RestoreConfig,
     packages: &PackageSnapshot,
     current: &PackageSnapshot,
     apply: bool,
     continue_on_error: bool,
 ) -> Result<()> {
-    let bar = ProgressBar::new(packages.packages.len() as u64);
+    // Drop packages whose source manager is disabled in config.
+    let selected: Vec<&InstalledPackage> = packages
+        .packages
+        .iter()
+        .filter(|p| source_enabled(&p.source, &config.package_managers))
+        .collect();
+    let skipped = packages.packages.len() - selected.len();
+    if skipped > 0 {
+        println!(
+            "  {}  {} package(s) skipped (manager disabled by config)",
+            "·".dimmed(),
+            skipped.to_string().cyan()
+        );
+    }
+
+    let bar = ProgressBar::new(selected.len() as u64);
     bar.set_style(ProgressStyle::with_template(
         "  {spinner:.yellow} [{elapsed_precise}] [{bar:32.yellow/blue}] {pos}/{len} {msg}",
     )?);
 
-    for package in &packages.packages {
+    for package in selected {
         bar.set_message(package.id.clone());
         if installed(package, &current.packages) {
             println!("  {}  {}", "·".green(), package.id.dimmed());
@@ -210,35 +263,122 @@ fn split_command(command: &str) -> (String, Vec<String>) {
     (program, parts.map(ToOwned::to_owned).collect())
 }
 
-async fn apply_environment(environment: &EnvironmentSnapshot) -> Result<()> {
-    let mut applied = 0usize;
-    for variable in &environment.user_variables {
-        if variable.name.eq_ignore_ascii_case("PATH") {
-            continue;
+async fn apply_environment(
+    config: &RestoreConfig,
+    environment: &EnvironmentSnapshot,
+    apply: bool,
+) -> Result<()> {
+    // User environment variables (excluding PATH, handled separately).
+    if config.restore_user_environment {
+        if apply {
+            let mut applied = 0usize;
+            for variable in &environment.user_variables {
+                if variable.name.eq_ignore_ascii_case("PATH") {
+                    continue;
+                }
+                powershell::set_user_env_var(&variable.name, &variable.value).await?;
+                applied += 1;
+            }
+            if applied > 0 {
+                println!(
+                    "  {}  carved {} rune(s) into the environment",
+                    "✓".green().bold(),
+                    applied.to_string().cyan().bold()
+                );
+            }
+        } else {
+            let count = environment
+                .user_variables
+                .iter()
+                .filter(|v| !v.name.eq_ignore_ascii_case("PATH"))
+                .count();
+            println!(
+                "  {}  would restore {} rune(s)",
+                "·".yellow().bold(),
+                count.to_string().cyan().bold()
+            );
         }
-        powershell::set_user_env_var(&variable.name, &variable.value).await?;
-        applied += 1;
-    }
-    if applied > 0 {
+    } else {
         println!(
-            "  {}  carved {} rune(s) into the environment",
-            "✓".green().bold(),
-            applied.to_string().cyan().bold()
+            "  {}  environment variables skipped (disabled by config)",
+            "·".dimmed()
         );
     }
-    let path_value = environment
-        .path_entries
-        .iter()
-        .map(|entry| entry.value.as_str())
-        .collect::<Vec<_>>()
-        .join(";");
-    if !path_value.is_empty() {
-        powershell::set_user_env_var("Path", &path_value).await?;
-        println!(
-            "  {}  PATH bound — {} entries",
-            "✓".green().bold(),
-            environment.path_entries.len().to_string().cyan().bold()
-        );
+
+    // PATH.
+    if config.restore_path {
+        let path_value = environment
+            .path_entries
+            .iter()
+            .map(|entry| entry.value.as_str())
+            .collect::<Vec<_>>()
+            .join(";");
+        if !path_value.is_empty() {
+            if apply {
+                powershell::set_user_env_var("Path", &path_value).await?;
+                println!(
+                    "  {}  PATH bound — {} entries",
+                    "✓".green().bold(),
+                    environment.path_entries.len().to_string().cyan().bold()
+                );
+            } else {
+                println!(
+                    "  {}  would bind PATH — {} entries",
+                    "·".yellow().bold(),
+                    environment.path_entries.len().to_string().cyan().bold()
+                );
+            }
+        }
+    } else {
+        println!("  {}  PATH skipped (disabled by config)", "·".dimmed());
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn managers(list: &[&str]) -> Vec<String> {
+        list.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn enabled_when_manager_listed() {
+        let m = managers(&["winget", "scoop"]);
+        assert!(source_enabled(&PackageManager::Winget, &m));
+        assert!(source_enabled(&PackageManager::Scoop, &m));
+        assert!(!source_enabled(&PackageManager::Npm, &m));
+    }
+
+    #[test]
+    fn choco_alias_matches_chocolatey() {
+        assert!(source_enabled(
+            &PackageManager::Chocolatey,
+            &managers(&["choco"])
+        ));
+        assert!(source_enabled(
+            &PackageManager::Chocolatey,
+            &managers(&["chocolatey"])
+        ));
+        assert!(!source_enabled(
+            &PackageManager::Chocolatey,
+            &managers(&["scoop"])
+        ));
+    }
+
+    #[test]
+    fn manual_and_unknown_always_enabled() {
+        let empty: Vec<String> = vec![];
+        assert!(source_enabled(&PackageManager::Manual, &empty));
+        assert!(source_enabled(&PackageManager::Unknown, &empty));
+    }
+
+    #[test]
+    fn matching_is_case_insensitive() {
+        assert!(source_enabled(
+            &PackageManager::Winget,
+            &managers(&["WinGet"])
+        ));
+    }
 }

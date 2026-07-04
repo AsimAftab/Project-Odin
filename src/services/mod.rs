@@ -12,6 +12,7 @@ pub mod plugin_service;
 pub mod process_service;
 pub mod redact;
 pub mod restore_service;
+pub mod schedule_service;
 pub mod secret_service;
 pub mod snapshot_service;
 pub mod storage;

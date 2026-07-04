@@ -1,94 +1,47 @@
+<!-- Mirrored in both repos (Odin-Platform and Project-Odin). Edit together. -->
+
 # Odin Platform Task Plan
 
-## Phase 1: Spec, Docs, And Public Landing
+Status legend: ✅ done · 🟡 partial · ⬜ pending.
 
-- Add product spec in `docs/odin-platform-spec.md`.
-- Add this task plan in `docs/odin-platform-tasks.md`.
-- Replace `odin-platform/app/page.tsx` auth redirect with a public landing page.
-- Keep dashboard access available through `/dashboard` for signed-in users.
-- Update platform metadata if needed to describe the open-source workstation backup hub.
-- Verify platform lint/build.
+## Phase 1: Spec, Docs, And Public Landing — ✅
 
-Acceptance:
+- ✅ Product spec + task plan under `docs/`.
+- ✅ Public landing page at `/`; dashboard reachable at `/dashboard` for signed-in users.
 
-- `/` can be viewed without signing in.
-- Landing page has CTAs for install, sign up, sign in, and dashboard.
-- Landing page references snapshots, migration/export, and catalog.
+## Phase 2: CLI Platform Connection — ✅
 
-## Phase 2: CLI Platform Connection
+- ✅ `platform` config in the CLI config model; `odin config platform` for URL + token.
+- ✅ Tokens stored via the OS credential store.
+- ✅ Upload service posts the latest snapshot to `/api/ingest`; `odin snapshot --push` and `upload_on_snapshot`.
+- ✅ Device-flow login (`odin login`).
 
-- Add `platform` config to the CLI config model.
-- Add `odin config platform` for platform URL and API token setup.
-- Store platform API tokens using the existing credential-store service.
-- Add a platform upload service that posts the latest snapshot payload to `/api/ingest`.
-- Add `odin snapshot --push` and optional `upload_on_snapshot` config behavior.
-- Document the workflow in `docs/usage.md`.
+## Phase 3: Platform Ingest Hardening — ✅
 
-Acceptance:
+- ✅ Keyed token format `odin_<keyId>_<secret>`; validation queries by `keyId` (O(1)), legacy tokens fall back to a bounded scan.
+- ✅ `lastUsedAt` recorded after successful validation.
+- ✅ Snapshot payload validated (zod, `lib/ingest-schema.ts`) with a 2 MB size cap → `400`/`413`.
+- ✅ Real `lockSha256` (server-computed SHA-256 over captured sections).
+- ✅ Rate limiting on device/ingest routes (`lib/rate-limit.ts`) and auth routes (Better Auth built-in).
 
-- A user can connect the CLI to a platform URL.
-- A user can upload a snapshot after local capture.
-- Upload failure does not remove or modify local snapshot files.
-- Existing GitHub sync still works.
+## Phase 4: Catalog And Tool Requests — ✅
 
-## Phase 3: Platform Ingest Hardening
+- ✅ Public `/catalog` + `CatalogTool`/`ToolRequest` models, seeded lazily.
+- ✅ Copyable install commands (winget/choco/scoop); authenticated request flow; maintainer review at `/dashboard/requests`.
 
-- Add a token prefix or lookup key to `ApiToken`.
-- Update token generation to return tokens with a lookup prefix.
-- Update validation to query candidate token records before bcrypt comparison.
-- Record `lastUsedAt` after successful validation.
-- Validate snapshot payload shape before writing Mongo records.
-- Store a real payload or lock hash for `lockSha256`.
+## Phase 5: Export, Import, And Migration — 🟡
 
-Acceptance:
+- ✅ Single-snapshot restore-script export (`/api/snapshots/[id]/export`).
+- ✅ Snapshot diff (`/api/snapshots/diff`), delete, and per-machine retention.
+- ⬜ Multi-snapshot export bundle.
+- ⬜ Import endpoint for Odin archive bundles.
+- ⬜ Platform→GitHub migration workflow.
 
-- Token validation is bounded to a small candidate set.
-- Invalid payloads return `400` with useful errors.
-- Invalid tokens return `401`.
-- Existing tokens either continue to work through a compatibility path or are intentionally reset with a migration note.
+## Phase 6: Quality, Deployment, And Maintenance — 🟡
 
-## Phase 4: Catalog And Tool Requests
-
-- Add a public `/catalog` route.
-- Add catalog data model for tools and install commands.
-- Seed initial tools from current Odin-supported package managers and common developer runtimes.
-- Show install commands for `winget`, Chocolatey, Scoop, direct installer, and docs where known.
-- Add authenticated missing-tool request flow.
-- Add dashboard view for a user's requests.
-
-Acceptance:
-
-- Users can search for tools.
-- Each tool page shows copyable install commands.
-- Users can request new tools.
-- Maintainers can review requested tools through data records or an admin-ready workflow.
-
-## Phase 5: Export, Import, And Migration
-
-- Add snapshot export API for a single snapshot.
-- Add multi-snapshot export bundle later if needed.
-- Add dashboard export buttons on snapshot pages.
-- Add GitHub migration workflow from platform to repository.
-- Add import endpoint for Odin archive bundles after CLI archive compatibility is confirmed.
-
-Acceptance:
-
-- A user can download their own snapshot data.
-- Exported data can be restored or imported by Odin.
-- Users cannot access exports belonging to another account.
-- GitHub remains an optional target.
-
-## Phase 6: Quality, Deployment, And Maintenance
-
-- Add tests for platform API auth and ingest paths.
-- Add CLI tests for config serialization and upload behavior.
-- Add deployment/self-host docs for Clerk, MongoDB, and environment variables.
-- Add privacy/security notes for snapshot content.
-- Add contribution guide for catalog tool entries.
-
-Acceptance:
-
-- Platform build and lint pass.
-- CLI `cargo test` passes.
-- A new contributor can run both projects locally.
-- A self-hosting user can configure auth, database, and platform URL.
+- ✅ Platform unit tests (`bun test`: token format, catalog-util, redaction, snapshot diff, restore script, user-code).
+- ✅ CI (`.github/workflows/ci.yml`): lint, typecheck, tests, build.
+- ✅ Self-host docs (README + `docs/architecture.md`, `docs/api.md`) for Better Auth, MongoDB, env vars.
+- ✅ `SECURITY.md` + contribution guide.
+- 🟡 CLI tests for config serialization and upload behavior (in progress in the CLI repo).
+- ⬜ Deeper integration tests for ingest/device-flow DB paths.

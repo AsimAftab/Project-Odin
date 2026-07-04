@@ -102,7 +102,7 @@ pub async fn run(ctx: AppContext, args: RollbackArgs) -> Result<()> {
     println!();
 
     let store = SnapshotStore::new(ctx.odin_dir().clone());
-    let restore_service = RestoreService::new(store);
+    let restore_service = RestoreService::new(store, ctx.config().restore.clone());
     restore_service
         .restore_from_id(&resolved_id, args.apply, false)
         .await?;

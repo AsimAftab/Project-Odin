@@ -41,6 +41,7 @@ windows = { version = "0.52", features = ["Win32_Foundation", "Win32_Graphics_Dw
 
 [dev-dependencies]
 tempfile = "3.12"
+wiremock = "0.6"
 
 [profile.release]
 lto = true

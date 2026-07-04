@@ -35,6 +35,7 @@ odin freeport   Free a bound port or PID with safety checks (alias: `odin kill`)
 ```text
 odin history    View snapshot history with colored timeline
 odin rollback   Restore environment to a previous snapshot
+odin schedule   Register/remove a recurring snapshot task (Windows Task Scheduler)
 ```
 
 ### Sync & Updates

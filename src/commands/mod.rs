@@ -21,6 +21,7 @@ pub mod ps;
 pub mod push;
 pub mod restore;
 pub mod rollback;
+pub mod schedule;
 pub mod snapshot;
 pub mod sync;
 pub mod update;
