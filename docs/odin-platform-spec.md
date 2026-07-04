@@ -46,7 +46,7 @@ The platform provides:
 ## Authentication & Tokens
 
 - **Browser:** Better Auth session cookie; `/dashboard` guarded by `proxy.ts`.
-- **CLI:** Bearer tokens in the format `odin_<keyId>_<secret>`. Only a bcrypt hash and the public `keyId` are stored; validation is an O(1) lookup by `keyId`. Legacy `odin_<hex>` tokens keep working via a fallback scan.
+- **CLI:** Bearer tokens in the format `odin_<keyId>_<secret>`. Only a bcrypt hash and the public `keyId` are stored; validation is an O(1) lookup by `keyId`. Only this format is accepted.
 - Rate limiting on device/ingest routes (Mongo-backed fixed window) and auth routes (Better Auth built-in).
 
 ## Data Model

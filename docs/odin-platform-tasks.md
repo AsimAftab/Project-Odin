@@ -18,7 +18,7 @@ Status legend: ✅ done · 🟡 partial · ⬜ pending.
 
 ## Phase 3: Platform Ingest Hardening — ✅
 
-- ✅ Keyed token format `odin_<keyId>_<secret>`; validation queries by `keyId` (O(1)), legacy tokens fall back to a bounded scan.
+- ✅ Keyed token format `odin_<keyId>_<secret>`; validation queries by `keyId` (O(1)). Only the keyed format is accepted.
 - ✅ `lastUsedAt` recorded after successful validation.
 - ✅ Snapshot payload validated (zod, `lib/ingest-schema.ts`) with a 2 MB size cap → `400`/`413`.
 - ✅ Real `lockSha256` (server-computed SHA-256 over captured sections).
