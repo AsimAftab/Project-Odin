@@ -1,7 +1,8 @@
 use crate::core::context::AppContext;
 use crate::services::history_service::HistoryService;
-use crate::services::restore_service::RestoreService;
+use crate::services::restore_service::{RestoreInputs, RestoreOptions, RestoreService};
 use crate::services::storage::SnapshotStore;
+use crate::ui::restore_view;
 use anyhow::Result;
 use colored::Colorize;
 
@@ -102,10 +103,30 @@ pub async fn run(ctx: AppContext, args: RollbackArgs) -> Result<()> {
     println!();
 
     let store = SnapshotStore::new(ctx.odin_dir().clone());
-    let restore_service = RestoreService::new(store, ctx.config().restore.clone());
-    restore_service
-        .restore_from_id(&resolved_id, args.apply, false)
-        .await?;
+    let restore_service = RestoreService::new(store);
+    let options = RestoreOptions::from_config(&ctx.config().restore, false);
+
+    let (packages, environment, vscode, git) = restore_service.load_history(&resolved_id).await?;
+    let inputs = RestoreInputs {
+        packages: &packages,
+        environment: &environment,
+        vscode: &vscode,
+        git: &git,
+    };
+    let plan = restore_service.plan(&inputs, &options).await?;
+
+    if args.apply {
+        let report = restore_service
+            .execute(plan, &inputs, &options, Some(&resolved_id))
+            .await?;
+        println!();
+        restore_view::print_report(&report);
+        if report.has_failures() {
+            anyhow::bail!("rollback completed with failures — see the report above");
+        }
+    } else {
+        restore_view::print_plan(&plan);
+    }
 
     if args.apply {
         println!();

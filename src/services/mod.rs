@@ -6,6 +6,7 @@ pub mod diff_service;
 pub mod doctor_service;
 pub mod export_service;
 pub mod history_service;
+pub mod manager_bootstrap;
 pub mod net_service;
 pub mod platform_service;
 pub mod plugin_service;

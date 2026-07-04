@@ -349,12 +349,46 @@ pub struct RestoreArgs {
 
     #[arg(
         long,
-        help = "Execute restore commands. Without this flag Odin prints a dry run."
+        help = "Execute the plan. Without this flag Odin prints the plan only."
     )]
     pub apply: bool,
 
     #[arg(long, help = "Continue restoring after a package command fails.")]
     pub continue_on_error: bool,
+
+    /// Restore only these sections (comma-separated): packages,extensions,git,env,path.
+    /// Overrides config — `--only git` restores git even if disabled in config.yaml.
+    #[arg(long, value_delimiter = ',', value_enum, conflicts_with = "skip")]
+    pub only: Vec<crate::models::restore::RestoreSection>,
+
+    /// Skip these sections (comma-separated): packages,extensions,git,env,path.
+    #[arg(long, value_delimiter = ',', value_enum)]
+    pub skip: Vec<crate::models::restore::RestoreSection>,
+
+    /// Restrict package restore to these managers (comma-separated, e.g.
+    /// winget,scoop,npm). Overrides config.restore.package_managers.
+    #[arg(long, value_delimiter = ',')]
+    pub managers: Vec<String>,
+
+    /// Package ids to exclude (comma-separated, case-insensitive).
+    #[arg(long, value_delimiter = ',')]
+    pub exclude: Vec<String>,
+
+    /// Pick sections and managers interactively, then confirm before applying.
+    #[arg(long, short = 'i', conflicts_with = "non_interactive")]
+    pub interactive: bool,
+
+    /// Never prompt (CI-safe). Missing managers go straight to the manual list.
+    #[arg(long)]
+    pub non_interactive: bool,
+
+    /// Print the plan (dry-run) or the full report (--apply) as JSON.
+    #[arg(long)]
+    pub json: bool,
+
+    /// Install missing package managers automatically before restoring their packages.
+    #[arg(long)]
+    pub bootstrap_managers: bool,
 }
 
 #[derive(Debug, Args)]

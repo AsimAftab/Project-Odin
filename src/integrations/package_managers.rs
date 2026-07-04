@@ -17,6 +17,8 @@ pub async fn detect_managers() -> Vec<PackageManagerInfo> {
         ("yarn", executable("yarn")),
         ("dotnet", executable("dotnet")),
         ("go", executable("go")),
+        ("pip", executable("pip")),
+        ("cargo", executable("cargo")),
         ("uv", executable("uv")),
     ];
     let mut managers = Vec::new();
@@ -568,7 +570,7 @@ fn executable(name: &str) -> Option<String> {
     }
 }
 
-fn scoop_executable() -> Option<String> {
+pub(crate) fn scoop_executable() -> Option<String> {
     if process::command_exists("scoop") {
         return Some("scoop".to_string());
     }
@@ -581,7 +583,7 @@ fn scoop_executable() -> Option<String> {
     None
 }
 
-fn choco_executable() -> Option<String> {
+pub(crate) fn choco_executable() -> Option<String> {
     if process::command_exists("choco") {
         return Some("choco".to_string());
     }
