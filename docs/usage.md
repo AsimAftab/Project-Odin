@@ -97,6 +97,53 @@ odin sync --branch staging
 odin sync --remote https://github.com/you/private-odin-state.git
 ```
 
+### Backup to Odin Platform
+
+Connect this machine to your Odin Platform account with a browser-based login
+(OAuth 2.0 device flow — no token copy/paste):
+
+```powershell
+# Opens your browser to approve this machine, then stores the token securely
+odin login --url https://your-platform.example.com
+```
+
+Odin verifies the connection, then asks whether to (1) upload each new snapshot
+automatically and (2) upload your existing local snapshots now. The API token is
+kept in the Windows credential store — never in `config.yaml`. Secret-looking
+environment values (names containing `TOKEN`, `KEY`, `SECRET`, `PASSWORD`, …) are
+redacted before upload.
+
+```powershell
+# Upload snapshots on demand
+odin push            # upload the latest snapshot
+odin push --all      # upload every snapshot in local history
+
+# Capture and upload in one step (even if auto-upload is off)
+odin snapshot --push
+
+# Skip the upload for a single snapshot when auto-upload is on
+odin snapshot --no-push
+
+# Always-on sync: with auto-upload enabled, drift is snapshotted and uploaded
+odin watch --follow
+
+# Check the connection / who you're connected as
+odin config show
+
+# Disconnect this machine (local snapshots are untouched)
+odin logout
+```
+
+For CI or headless machines, connect with a pre-minted token instead of the
+browser flow:
+
+```powershell
+odin config platform --url https://your-platform.example.com --token odin_xxxx... --non-interactive
+```
+
+Uploads never modify or delete local snapshots — a failed upload leaves your
+vault intact and prints an `odin push` retry hint.
+
 ### Check for Updates
 
 ```powershell

@@ -6,6 +6,9 @@ use std::path::PathBuf;
 
 use crate::core::context::AppContext;
 use crate::models::watcher::{WatchEventType, WatcherEvent};
+use crate::services::platform_service::{self, PlatformService};
+use crate::services::snapshot_service::SnapshotService;
+use crate::services::storage::SnapshotStore;
 use crate::services::watcher_service::WatcherService;
 use crate::ui::text_tables::{rule, styled_table};
 
@@ -25,8 +28,14 @@ pub struct WatchArgs {
     pub json: bool,
 }
 
-pub async fn run(_ctx: AppContext, args: WatchArgs) -> Result<()> {
+pub async fn run(ctx: AppContext, args: WatchArgs) -> Result<()> {
     let service = WatcherService::new(args.record.clone());
+
+    // Always-on platform sync: when auto-upload is enabled and we're following,
+    // each detected drift triggers a fresh snapshot + upload.
+    let sync_enabled = args.follow
+        && ctx.config().platform.upload_on_snapshot
+        && platform_service::is_configured(ctx.config());
 
     println!();
     println!(
@@ -52,6 +61,13 @@ pub async fn run(_ctx: AppContext, args: WatchArgs) -> Result<()> {
             "  {}  ravens scribe to {}",
             "·".dimmed(),
             path.display().to_string().cyan()
+        );
+    }
+
+    if sync_enabled {
+        println!(
+            "  {}  platform sync on — drift is snapshotted and uploaded",
+            "·".bright_blue()
         );
     }
 
@@ -91,8 +107,43 @@ pub async fn run(_ctx: AppContext, args: WatchArgs) -> Result<()> {
             );
         } else {
             print_events(&events);
+            if sync_enabled {
+                sync_on_drift(&ctx).await;
+            }
         }
         previous = current;
+    }
+}
+
+/// Captures a snapshot and uploads it to the platform. Non-fatal: any failure is
+/// reported and the watch loop keeps running.
+async fn sync_on_drift(ctx: &AppContext) {
+    let store = SnapshotStore::new(ctx.odin_dir().clone());
+    let captured = SnapshotService::new(store)
+        .with_keep_last(ctx.config().snapshot.keep_last)
+        .capture(false, Some("watch".to_string()))
+        .await;
+    match captured {
+        Ok(_) => match PlatformService::new(ctx.odin_dir().clone())
+            .upload_latest(ctx.config())
+            .await
+        {
+            Ok(id) => println!(
+                "  {}  synced to platform ({})",
+                "✓".green().bold(),
+                id.bright_yellow()
+            ),
+            Err(e) => println!(
+                "  {}  platform sync failed: {}",
+                "⚠".yellow().bold(),
+                e.to_string().red()
+            ),
+        },
+        Err(e) => println!(
+            "  {}  sync snapshot failed: {}",
+            "⚠".yellow().bold(),
+            e.to_string().red()
+        ),
     }
 }
 

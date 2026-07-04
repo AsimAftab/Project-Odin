@@ -2,11 +2,17 @@ use anyhow::{Context, Result};
 use colored::Colorize;
 use dialoguer::{Confirm, Input, Password};
 
-use crate::cli::{ConfigArgs, ConfigCommands, ConfigGithubArgs, ConfigShowArgs};
+use crate::cli::{
+    ConfigArgs, ConfigCommands, ConfigGithubArgs, ConfigPlatformArgs, ConfigShowArgs,
+};
 use crate::core::context::AppContext;
 use crate::integrations::github::GitHubClient;
+use crate::integrations::platform::PlatformClient;
 use crate::services::{
-    config_service::ConfigService, secret_service::SecretService, storage::SnapshotStore,
+    config_service::ConfigService,
+    platform_service::{self, PlatformService},
+    secret_service::SecretService,
+    storage::SnapshotStore,
     sync_service::SyncService,
 };
 use crate::utils::terminal;
@@ -14,8 +20,68 @@ use crate::utils::terminal;
 pub async fn run(ctx: AppContext, args: ConfigArgs) -> Result<()> {
     match args.command {
         ConfigCommands::Github(args) => github(ctx, args).await,
+        ConfigCommands::Platform(args) => platform(ctx, args).await,
         ConfigCommands::Show(args) => show(ctx, args).await,
     }
+}
+
+// Manual/headless platform setup. `odin login` (device flow) is the preferred
+// path; this exists for CI where pasting a pre-minted token is easier.
+async fn platform(ctx: AppContext, args: ConfigPlatformArgs) -> Result<()> {
+    let interactive = terminal::is_interactive() && !args.non_interactive;
+
+    let url = match args.url {
+        Some(url) => url,
+        None if interactive => Input::<String>::new()
+            .with_prompt("Platform URL")
+            .interact_text()?,
+        None => anyhow::bail!("--url is required in non-interactive mode"),
+    };
+    let token = match args.token {
+        Some(token) => token,
+        None if interactive => Password::new()
+            .with_prompt("Platform API token (odin_...)")
+            .allow_empty_password(false)
+            .interact()?,
+        None => anyhow::bail!("--token or ODIN_PLATFORM_TOKEN is required in non-interactive mode"),
+    };
+
+    // Verify the token before persisting anything.
+    let identity = PlatformClient::new(&url)?
+        .me(&token)
+        .await
+        .context("could not verify the token with the platform")?;
+
+    let service = PlatformService::new(ctx.odin_dir().clone());
+    service.store_credentials(&url, &token).await?;
+
+    let auto_upload = if args.auto_upload {
+        true
+    } else if interactive {
+        Confirm::new()
+            .with_prompt("Automatically upload each new snapshot to the platform?")
+            .default(true)
+            .interact()?
+    } else {
+        false
+    };
+    service.set_upload_on_snapshot(auto_upload).await?;
+
+    println!();
+    match identity.email {
+        Some(email) => println!(
+            "  {}  Platform connected — {}",
+            "✓".green().bold(),
+            email.bright_yellow().bold()
+        ),
+        None => println!(
+            "  {}  Platform connected — {}",
+            "✓".green().bold(),
+            url.cyan()
+        ),
+    }
+    println!();
+    Ok(())
 }
 
 async fn github(ctx: AppContext, args: ConfigGithubArgs) -> Result<()> {
@@ -140,5 +206,31 @@ async fn show(ctx: AppContext, args: ConfigShowArgs) -> Result<()> {
     );
     println!("  {}", "─".repeat(54).dimmed());
     println!("{}", serde_yaml::to_string(&config)?);
+
+    // Live platform connection check.
+    if platform_service::is_configured(&config) {
+        match PlatformService::new(ctx.odin_dir().clone())
+            .verify(&config)
+            .await
+        {
+            Ok(id) => {
+                let who = id
+                    .name
+                    .or(id.email)
+                    .or(id.user_id)
+                    .unwrap_or_else(|| "unknown".to_string());
+                println!(
+                    "  {}  platform: connected as {}",
+                    "✓".green().bold(),
+                    who.bright_yellow()
+                );
+            }
+            Err(_) => println!(
+                "  {}  platform: token invalid or unreachable (run {})",
+                "⚠".yellow().bold(),
+                "odin login".cyan()
+            ),
+        }
+    }
     Ok(())
 }

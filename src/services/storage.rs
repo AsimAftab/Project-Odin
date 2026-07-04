@@ -106,6 +106,11 @@ impl SnapshotStore {
         fs::read_json(&self.path(GIT)).await
     }
 
+    pub async fn read_lock(&self) -> Result<OdinLock> {
+        self.ensure_snapshot_file(LOCK)?;
+        fs::read_json(&self.path(LOCK)).await
+    }
+
     fn ensure_snapshot_file(&self, name: &str) -> Result<()> {
         if self.path(name).exists() {
             Ok(())

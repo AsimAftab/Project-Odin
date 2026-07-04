@@ -7,6 +7,9 @@ pub struct OdinConfig {
     pub restore: RestoreConfig,
     pub sync: SyncConfig,
     pub github: GitHubConfig,
+    // `#[serde(default)]` keeps pre-platform config.yaml files loadable.
+    #[serde(default)]
+    pub platform: PlatformConfig,
 }
 
 impl Default for OdinConfig {
@@ -34,6 +37,7 @@ impl Default for OdinConfig {
                 branch: "main".to_string(),
                 token_key: None,
             },
+            platform: PlatformConfig::default(),
         }
     }
 }
@@ -65,4 +69,16 @@ pub struct GitHubConfig {
     pub repository_url: Option<String>,
     pub branch: String,
     pub token_key: Option<String>,
+}
+
+/// Odin Platform connection. `url` is the platform origin; the API token itself
+/// lives in the OS credential store under `token_key` (never in config.yaml).
+/// When `upload_on_snapshot` is set, `odin snapshot` (and `odin watch --follow`)
+/// push captured snapshots to the platform automatically.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct PlatformConfig {
+    pub url: Option<String>,
+    pub token_key: Option<String>,
+    #[serde(default)]
+    pub upload_on_snapshot: bool,
 }

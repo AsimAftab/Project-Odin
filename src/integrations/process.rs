@@ -19,6 +19,23 @@ pub fn command_exists(command: &str) -> bool {
     which::which(command).is_ok()
 }
 
+/// Opens a URL in the user's default browser (Windows). Best-effort: returns an
+/// error only if the launcher itself fails to start. The empty `""` after
+/// `start` is the window-title argument, so a URL with special characters is
+/// treated as the target rather than the title.
+pub async fn open_url(url: &str) -> Result<()> {
+    let status = Command::new("cmd.exe")
+        .args(["/C", "start", "", url])
+        .status()
+        .await
+        .context("failed to launch the default browser")?;
+    if status.success() {
+        Ok(())
+    } else {
+        anyhow::bail!("browser launcher exited with {status}");
+    }
+}
+
 pub async fn capture(command: &str, args: &[&str]) -> Result<CommandOutput> {
     let mut process = command_for(command, args);
     let output = process

@@ -5,7 +5,11 @@ use indicatif::{ProgressBar, ProgressStyle};
 
 use crate::cli::SnapshotArgs;
 use crate::core::context::AppContext;
-use crate::services::{snapshot_service::SnapshotService, storage::SnapshotStore};
+use crate::services::{
+    platform_service::{self, PlatformService},
+    snapshot_service::SnapshotService,
+    storage::SnapshotStore,
+};
 use crate::ui::text_tables::{rule, styled_table};
 
 pub async fn run(ctx: AppContext, args: SnapshotArgs) -> Result<()> {
@@ -76,5 +80,55 @@ pub async fn run(ctx: AppContext, args: SnapshotArgs) -> Result<()> {
         ctx.odin_dir().display().to_string().dimmed()
     );
     println!();
+
+    maybe_push(&ctx, &args).await;
     Ok(())
+}
+
+/// Uploads the just-captured snapshot when `--push` is set or auto-upload is
+/// enabled (and not overridden by `--no-push`). Never fails the snapshot: a
+/// failed upload leaves local files intact and points the user at `odin push`.
+async fn maybe_push(ctx: &AppContext, args: &SnapshotArgs) {
+    let should_push = args.push || (ctx.config().platform.upload_on_snapshot && !args.no_push);
+    if !should_push {
+        return;
+    }
+
+    if !platform_service::is_configured(ctx.config()) {
+        if args.push {
+            println!(
+                "  {}  --push ignored: not connected. Run {} first.",
+                "⚠".yellow().bold(),
+                "odin login".cyan()
+            );
+            println!();
+        }
+        return;
+    }
+
+    match PlatformService::new(ctx.odin_dir().clone())
+        .upload_latest(ctx.config())
+        .await
+    {
+        Ok(id) => {
+            println!(
+                "  {}  pushed to platform ({})",
+                "✓".green().bold(),
+                id.bright_yellow()
+            );
+        }
+        Err(e) => {
+            println!(
+                "  {}  platform upload failed: {}",
+                "⚠".yellow().bold(),
+                e.to_string().red()
+            );
+            println!(
+                "  {}  local snapshot is safe — run {} to retry",
+                "·".dimmed(),
+                "odin push".cyan()
+            );
+        }
+    }
+    println!();
 }

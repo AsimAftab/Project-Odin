@@ -25,6 +25,12 @@ pub enum Commands {
     Init(InitArgs),
     /// Configure the Bifrost (GitHub) and view local config.
     Config(ConfigArgs),
+    /// Bind this realm to an Odin Platform account (browser login).
+    Login(LoginArgs),
+    /// Sever the binding to the Odin Platform on this machine.
+    Logout(LogoutArgs),
+    /// Send runes across to the Odin Platform (upload snapshots).
+    Push(PushArgs),
     /// Capture this realm into a rune (snapshot) in the vault.
     Snapshot(SnapshotArgs),
     /// Bind this realm to the vault — preview by default, `--apply` to execute.
@@ -177,7 +183,63 @@ pub struct ConfigArgs {
 #[derive(Debug, Subcommand)]
 pub enum ConfigCommands {
     Github(ConfigGithubArgs),
+    Platform(ConfigPlatformArgs),
     Show(ConfigShowArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct ConfigPlatformArgs {
+    /// Platform URL, e.g. https://odin.example.com.
+    #[arg(long, env = "ODIN_PLATFORM_URL")]
+    pub url: Option<String>,
+
+    /// API token (odin_...). Prefer `odin login`; this is for CI/headless setups.
+    #[arg(long, env = "ODIN_PLATFORM_TOKEN")]
+    pub token: Option<String>,
+
+    /// Enable automatic upload after each snapshot.
+    #[arg(long)]
+    pub auto_upload: bool,
+
+    #[arg(long)]
+    pub non_interactive: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct LoginArgs {
+    /// Platform URL, e.g. https://odin.example.com. Prompted if omitted in a TTY.
+    #[arg(long, env = "ODIN_PLATFORM_URL")]
+    pub url: Option<String>,
+
+    /// Print the verification URL instead of opening a browser.
+    #[arg(long)]
+    pub no_browser: bool,
+
+    /// Enable auto-upload after connecting without prompting.
+    #[arg(long)]
+    pub auto_upload: bool,
+
+    /// Upload all existing local snapshots after connecting without prompting.
+    #[arg(long)]
+    pub push_existing: bool,
+
+    /// Assume "yes" to the post-login consent prompts.
+    #[arg(long)]
+    pub yes: bool,
+
+    /// Skip interactive prompts (requires --url).
+    #[arg(long)]
+    pub non_interactive: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct LogoutArgs {}
+
+#[derive(Debug, Args)]
+pub struct PushArgs {
+    /// Upload every snapshot in local history, not just the latest.
+    #[arg(long)]
+    pub all: bool,
 }
 
 #[derive(Debug, Args)]
@@ -215,6 +277,14 @@ pub struct SnapshotArgs {
     /// Optional human-readable tag for this snapshot (e.g. "prod", "before-migration").
     #[arg(long)]
     pub tag: Option<String>,
+
+    /// Upload this snapshot to the platform after capture (even if auto-upload is off).
+    #[arg(long)]
+    pub push: bool,
+
+    /// Do not upload this snapshot, even if auto-upload is enabled.
+    #[arg(long, conflicts_with = "push")]
+    pub no_push: bool,
 }
 
 #[derive(Debug, Args)]
