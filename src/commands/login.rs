@@ -1,0 +1,112 @@
+use anyhow::{bail, Result};
+use colored::Colorize;
+use dialoguer::{Confirm, Input};
+
+use crate::cli::LoginArgs;
+use crate::core::context::AppContext;
+use crate::services::config_service::ConfigService;
+use crate::services::platform_service::PlatformService;
+use crate::utils::terminal;
+
+pub async fn run(ctx: AppContext, args: LoginArgs) -> Result<()> {
+    let interactive = terminal::is_interactive() && !args.non_interactive;
+
+    let url = match args.url {
+        Some(url) => url,
+        None if interactive => Input::<String>::new()
+            .with_prompt("Platform URL")
+            .interact_text()?,
+        None => bail!("--url is required in non-interactive mode"),
+    };
+
+    let service = PlatformService::new(ctx.odin_dir().clone());
+    let result = service
+        .login(&url, hostname().as_deref(), !args.no_browser)
+        .await?;
+
+    println!();
+    match &result.email {
+        Some(email) => println!(
+            "  {}  Connected to {} as {}",
+            "✓".green().bold(),
+            result.url.cyan(),
+            email.bright_yellow().bold()
+        ),
+        None => println!(
+            "  {}  Connected to {}",
+            "✓".green().bold(),
+            result.url.cyan()
+        ),
+    }
+
+    // Consent — automatic upload of future snapshots.
+    let auto_upload = if args.auto_upload || args.yes {
+        true
+    } else if interactive {
+        Confirm::new()
+            .with_prompt("Automatically upload each new snapshot to the platform?")
+            .default(true)
+            .interact()?
+    } else {
+        false
+    };
+    service.set_upload_on_snapshot(auto_upload).await?;
+
+    // Consent — backfill existing local snapshots now.
+    let backfill = if args.push_existing || args.yes {
+        true
+    } else if interactive {
+        Confirm::new()
+            .with_prompt("Upload your existing local snapshots now?")
+            .default(true)
+            .interact()?
+    } else {
+        false
+    };
+
+    if backfill {
+        let config = ConfigService::new(ctx.odin_dir().clone()).load().await?;
+        let summary = service.upload_all_history(&config).await?;
+        if summary.total == 0 {
+            println!("  {}  no local snapshots to upload yet", "·".dimmed());
+        } else {
+            let failed = if summary.failed > 0 {
+                format!(" ({} failed)", summary.failed).red().to_string()
+            } else {
+                String::new()
+            };
+            println!(
+                "  {}  uploaded {}/{} snapshots{}",
+                "✓".green().bold(),
+                summary.uploaded,
+                summary.total,
+                failed
+            );
+        }
+    }
+
+    println!();
+    if auto_upload {
+        println!(
+            "  {}  {} now pushes automatically; {} syncs on drift",
+            "→".bright_blue(),
+            "odin snapshot".cyan(),
+            "odin watch --follow".cyan()
+        );
+    } else {
+        println!(
+            "  {}  run {} to upload snapshots",
+            "→".bright_blue(),
+            "odin push".cyan().bold()
+        );
+    }
+    println!();
+    Ok(())
+}
+
+/// Device label shown on the approval page. Best-effort machine name.
+fn hostname() -> Option<String> {
+    std::env::var("COMPUTERNAME")
+        .ok()
+        .or_else(|| std::env::var("HOSTNAME").ok())
+}

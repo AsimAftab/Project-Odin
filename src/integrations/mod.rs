@@ -4,6 +4,7 @@ pub mod github;
 pub mod install;
 pub mod launcher;
 pub mod package_managers;
+pub mod platform;
 pub mod plugin_loader;
 pub mod powershell;
 pub mod process;
