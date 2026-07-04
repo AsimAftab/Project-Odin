@@ -342,6 +342,11 @@ pub struct SnapshotArgs {
 
 #[derive(Debug, Args)]
 pub struct RestoreArgs {
+    /// Snapshot to restore: a local history id/tag, or (if not found locally)
+    /// a snapshot id hosted on the Odin Platform. Omit to restore from the
+    /// current vault (the last `odin snapshot`).
+    pub snapshot: Option<String>,
+
     #[arg(
         long,
         help = "Execute restore commands. Without this flag Odin prints a dry run."

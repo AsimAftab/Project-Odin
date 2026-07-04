@@ -197,6 +197,41 @@ impl PlatformClient {
             bail!("snapshot upload failed with {status}: {body}");
         }
     }
+
+    /// Fetches a single snapshot by id (`GET /api/snapshots/<id>`), owned by
+    /// the caller. Used by `odin restore <snapshot-id>` to pull a
+    /// platform-hosted snapshot directly instead of a browser-exported script.
+    pub async fn fetch_snapshot(
+        &self,
+        token: &str,
+        snapshot_id: &str,
+    ) -> Result<serde_json::Value> {
+        let resp = self
+            .client
+            .get(self.url(&format!("/api/snapshots/{snapshot_id}")))
+            .header(AUTHORIZATION, format!("Bearer {token}"))
+            .send()
+            .await
+            .context("failed to reach the platform")?;
+
+        if resp.status().is_success() {
+            let body: SnapshotEnvelope = resp.json().await?;
+            Ok(body.snapshot)
+        } else if resp.status().as_u16() == 404 {
+            bail!("snapshot `{snapshot_id}` not found on the platform — check the id on the dashboard");
+        } else if resp.status().as_u16() == 429 {
+            bail!(rate_limited_message(&resp));
+        } else {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            bail!("fetching snapshot failed with {status}: {body}");
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct SnapshotEnvelope {
+    snapshot: serde_json::Value,
 }
 
 /// Friendly message for a 429, including the server's `Retry-After` hint if present.
@@ -374,5 +409,61 @@ mod tests {
                 "token {token} was not sent verbatim"
             );
         }
+    }
+
+    #[tokio::test]
+    async fn fetch_snapshot_success_404_and_429() {
+        // Success.
+        let ok_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/snapshots/snap-1"))
+            .and(header("authorization", "Bearer odin_tok"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "snapshot": { "packages": { "packages": [] } }
+            })))
+            .mount(&ok_server)
+            .await;
+        let client = PlatformClient::new(&ok_server.uri()).unwrap();
+        let value = client.fetch_snapshot("odin_tok", "snap-1").await.unwrap();
+        assert!(value.get("packages").is_some());
+
+        // Not found.
+        let missing = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/snapshots/nope"))
+            .respond_with(ResponseTemplate::new(404).set_body_json(serde_json::json!({
+                "error": "Not found"
+            })))
+            .mount(&missing)
+            .await;
+        let client2 = PlatformClient::new(&missing.uri()).unwrap();
+        let err = client2
+            .fetch_snapshot("odin_tok", "nope")
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("not found"), "got: {err}");
+
+        // Rate limited.
+        let limited = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/snapshots/snap-1"))
+            .respond_with(
+                ResponseTemplate::new(429)
+                    .insert_header("retry-after", "7")
+                    .set_body_json(serde_json::json!({ "error": "rate_limited" })),
+            )
+            .mount(&limited)
+            .await;
+        let client3 = PlatformClient::new(&limited.uri()).unwrap();
+        let err = client3
+            .fetch_snapshot("odin_tok", "snap-1")
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(
+            err.contains("rate limited") && err.contains('7'),
+            "got: {err}"
+        );
     }
 }

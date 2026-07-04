@@ -13,6 +13,10 @@ use crate::asgard::store::AsgardStore;
 use crate::integrations::platform::{Identity, PlatformClient, PollOutcome};
 use crate::integrations::process;
 use crate::models::config::OdinConfig;
+use crate::models::environment::EnvironmentSnapshot;
+use crate::models::git::GitConfigSnapshot;
+use crate::models::package::PackageSnapshot;
+use crate::models::vscode::VsCodeExtensionsSnapshot;
 use crate::services::config_service::ConfigService;
 use crate::services::redact;
 use crate::services::secret_service::SecretService;
@@ -213,6 +217,32 @@ impl PlatformService {
         }))
     }
 
+    /// Fetches a snapshot hosted on the platform by id and parses it into the
+    /// same typed sections a local snapshot would produce, so it feeds
+    /// straight into `RestoreService::restore_from_sections`. Used by
+    /// `odin restore <snapshot-id>` when the id isn't found in local history.
+    pub async fn fetch_snapshot(
+        &self,
+        config: &OdinConfig,
+        snapshot_id: &str,
+    ) -> Result<(
+        PackageSnapshot,
+        EnvironmentSnapshot,
+        VsCodeExtensionsSnapshot,
+        GitConfigSnapshot,
+    )> {
+        let (url, token) = require_config(config)?;
+        let raw = PlatformClient::new(&url)?
+            .fetch_snapshot(&token, snapshot_id)
+            .await?;
+
+        let packages = parse_section(&raw, "packages")?;
+        let environment = parse_section(&raw, "environment")?;
+        let vscode = parse_section(&raw, "vscode")?;
+        let git = parse_section(&raw, "git")?;
+        Ok((packages, environment, vscode, git))
+    }
+
     /// Uploads every snapshot found under `~/.odin/history`. Idempotent on the
     /// platform (keyed by snapshot_id), and resilient: a snapshot that fails to
     /// read or upload is counted and skipped, never aborting the batch.
@@ -272,6 +302,18 @@ impl PlatformService {
 /// True when the platform is configured (URL + token key present).
 pub fn is_configured(config: &OdinConfig) -> bool {
     config.platform.url.is_some() && config.platform.token_key.is_some()
+}
+
+/// Pulls a named top-level key out of a platform snapshot JSON body and
+/// deserializes it into a typed section, with a clear error if the key is
+/// missing or shaped unexpectedly (e.g. an older/incompatible snapshot).
+fn parse_section<T: serde::de::DeserializeOwned>(raw: &serde_json::Value, key: &str) -> Result<T> {
+    let value = raw
+        .get(key)
+        .cloned()
+        .with_context(|| format!("platform snapshot is missing `{key}`"))?;
+    serde_json::from_value(value)
+        .with_context(|| format!("platform snapshot `{key}` has an unexpected shape"))
 }
 
 /// Resolves the platform URL and API token, or a clear "run `odin login`" error.
