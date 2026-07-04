@@ -1,25 +1,51 @@
-use anyhow::{bail, Result};
+use anyhow::Result;
 use colored::Colorize;
-use dialoguer::{Confirm, Input};
+use dialoguer::Confirm;
 
 use crate::cli::LoginArgs;
 use crate::core::context::AppContext;
 use crate::services::config_service::ConfigService;
-use crate::services::platform_service::PlatformService;
+use crate::services::platform_service::{self, PlatformService};
 use crate::utils::terminal;
 
 pub async fn run(ctx: AppContext, args: LoginArgs) -> Result<()> {
     let interactive = terminal::is_interactive() && !args.non_interactive;
-
-    let url = match args.url {
-        Some(url) => url,
-        None if interactive => Input::<String>::new()
-            .with_prompt("Platform URL")
-            .interact_text()?,
-        None => bail!("--url is required in non-interactive mode"),
-    };
-
+    let url = args.url.clone();
     let service = PlatformService::new(ctx.odin_dir().clone());
+
+    // Already connected? Verify the stored token and short-circuit unless the
+    // user explicitly wants to reconnect / switch accounts.
+    if !args.force && platform_service::is_configured(ctx.config()) {
+        if let Ok(identity) = service.verify(ctx.config()).await {
+            let who = identity
+                .email
+                .or(identity.name)
+                .unwrap_or_else(|| "your account".to_string());
+            println!();
+            println!(
+                "  {}  Already connected as {}",
+                "✓".green().bold(),
+                who.bright_yellow().bold()
+            );
+            let reconnect = interactive
+                && Confirm::new()
+                    .with_prompt("Reconnect / switch account?")
+                    .default(false)
+                    .interact()?;
+            if !reconnect {
+                println!(
+                    "  {}  you're all set — {} to upload, {} to disconnect",
+                    "·".dimmed(),
+                    "odin sync".cyan(),
+                    "odin logout".cyan()
+                );
+                println!();
+                return Ok(());
+            }
+        }
+        // Token invalid/unreachable → fall through to a fresh login.
+    }
+
     let result = service
         .login(&url, hostname().as_deref(), !args.no_browser)
         .await?;

@@ -61,7 +61,7 @@ async fn main() -> Result<()> {
                 .await
                 .ok()
                 .and_then(|s| s.active_profile);
-            utils::banner::print_banner(active.as_deref());
+            utils::banner::print_banner(active.as_deref(), &ctx.config().platform);
             Ok(())
         }
     }

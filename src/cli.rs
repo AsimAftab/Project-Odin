@@ -207,9 +207,17 @@ pub struct ConfigPlatformArgs {
 
 #[derive(Debug, Args)]
 pub struct LoginArgs {
-    /// Platform URL, e.g. https://odin.example.com. Prompted if omitted in a TTY.
-    #[arg(long, env = "ODIN_PLATFORM_URL")]
-    pub url: Option<String>,
+    /// Platform URL. Defaults to the hosted Odin Platform; override for self-hosted.
+    #[arg(
+        long,
+        env = "ODIN_PLATFORM_URL",
+        default_value = "https://odin-platform-dusky.vercel.app"
+    )]
+    pub url: String,
+
+    /// Re-run the login flow even if already connected.
+    #[arg(long)]
+    pub force: bool,
 
     /// Print the verification URL instead of opening a browser.
     #[arg(long)]

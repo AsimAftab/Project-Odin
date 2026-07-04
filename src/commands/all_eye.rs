@@ -31,6 +31,19 @@ pub async fn run(ctx: AppContext, _args: AllEyeArgs) -> Result<()> {
             HealthStatus::Warn("not configured".into())
         },
     });
+    let platform = &ctx.config().platform;
+    health.push(HealthCheck {
+        label: "Odin Platform".into(),
+        status: if platform.url.is_some() && platform.token_key.is_some() {
+            if platform.upload_on_snapshot {
+                HealthStatus::Ok("connected · auto-upload".into())
+            } else {
+                HealthStatus::Ok("connected · manual push".into())
+            }
+        } else {
+            HealthStatus::Warn("not connected — run `odin login`".into())
+        },
+    });
     if let Some(token_key) = &ctx.config().github.token_key {
         let label = "Rune of authority".to_string();
         let status = if SecretService::get_token(token_key).is_ok() {

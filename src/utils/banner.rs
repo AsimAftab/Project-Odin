@@ -1,6 +1,8 @@
 use colored::Colorize;
 
-pub fn print_banner(active_realm: Option<&str>) {
+use crate::models::config::PlatformConfig;
+
+pub fn print_banner(active_realm: Option<&str>, platform: &PlatformConfig) {
     let banner = r#"
    ██████╗ ██████╗ ██╗███╗   ██╗
    ██╔═══██╗██╔══██╗██║████╗  ██║
@@ -46,6 +48,27 @@ pub fn print_banner(active_realm: Option<&str>) {
                 "odin asgard".cyan().bold()
             );
         }
+    }
+
+    // Platform connection at a glance (config-only, no network call).
+    if platform.url.is_some() && platform.token_key.is_some() {
+        let mode = if platform.upload_on_snapshot {
+            "auto-upload on"
+        } else {
+            "manual push"
+        };
+        println!(
+            "  {}  platform: {} ({})",
+            "●".bright_green().bold(),
+            "connected".bright_yellow(),
+            mode.dimmed()
+        );
+    } else {
+        println!(
+            "  {}  platform: not connected — run {} to back up online",
+            "○".dimmed(),
+            "odin login".cyan().bold()
+        );
     }
     println!();
 

@@ -1,17 +1,20 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 
 use anyhow::{anyhow, bail, Result};
 use chrono::Utc;
 use colored::Colorize;
 use dialoguer::{Confirm, FuzzySelect, Input, Select};
 use indicatif::{ProgressBar, ProgressStyle};
+use windows::Win32::Foundation::HWND;
 
 use crate::asgard::profile::{
     validate_name, BrowserEntry, LayoutPreset, Profile, StartupApp, WindowLayout, WindowState,
 };
 use crate::asgard::store::AsgardStore;
-use crate::integrations::launcher;
+use crate::integrations::launcher::{self, LaunchPlan};
+use crate::integrations::window_manager;
 
 /// Outcome of activating a profile, used for printing summaries and JSON output.
 #[derive(Debug, Default)]
@@ -40,17 +43,45 @@ pub async fn activate(odin_dir: &Path, name: &str) -> Result<ActivationReport> {
         ..Default::default()
     };
 
+    // Plan launches up-front: a "tracked" app is one whose window we must find
+    // post-launch — either it has a layout, or it wants min/max and its launch
+    // path can't set that natively (ShellStart honors /MIN //MAX itself).
+    let plans: Vec<LaunchPlan> = profile
+        .startup_apps
+        .iter()
+        .map(launcher::plan_launch)
+        .collect();
+    let tracked_indices: Vec<usize> = profile
+        .startup_apps
+        .iter()
+        .enumerate()
+        .filter(|(i, app)| {
+            app.layout.is_some()
+                || (app.window != WindowState::Normal
+                    && !matches!(plans[*i], LaunchPlan::ShellStart(_)))
+        })
+        .map(|(i, _)| i)
+        .collect();
+
+    // Snapshot windows BEFORE launching anything so the matcher can tell
+    // freshly created windows from pre-existing ones.
+    let prelaunch = window_manager::snapshot_visible_windows();
+
     if let Some(ws) = &profile.vscode_workspace {
         let label = format!("vscode: {ws}");
-        match launcher::open_vscode_workspace(Path::new(ws)) {
-            Ok(()) => report.started.push(label),
+        match launcher::open_vscode_workspace(Path::new(ws)).await {
+            Ok(_) => report.started.push(label),
             Err(e) => report.failed.push((label, first_line(&e.to_string()))),
         }
     }
 
-    for app in &profile.startup_apps {
-        match launcher::launch(app, &profile.env) {
-            Ok(()) => report.started.push(format!("app: {}", app.name)),
+    let mut owned_pids: Vec<Option<u32>> = vec![None; profile.startup_apps.len()];
+    for (i, app) in profile.startup_apps.iter().enumerate() {
+        match launcher::launch(app, &profile.env).await {
+            Ok(outcome) => {
+                owned_pids[i] = outcome.pid;
+                report.started.push(format!("app: {}", app.name));
+            }
             Err(e) => report
                 .failed
                 .push((format!("app: {}", app.name), first_line(&e.to_string()))),
@@ -65,80 +96,157 @@ pub async fn activate(odin_dir: &Path, name: &str) -> Result<ActivationReport> {
         }
     }
 
-    let layouts_to_apply: Vec<_> = profile
-        .startup_apps
-        .iter()
-        .filter(|app| app.layout.is_some())
-        .map(|app| {
-            let targets =
-                crate::integrations::window_manager::search_targets(&app.name, &app.command);
-            (app.name.clone(), targets, app.layout.clone().unwrap())
-        })
-        .collect();
-
-    if !layouts_to_apply.is_empty() {
+    if !tracked_indices.is_empty() {
         let spinner = ProgressBar::new_spinner();
         if let Ok(style) = ProgressStyle::with_template("  {spinner:.yellow} {msg}") {
             spinner.set_style(style);
         }
-        spinner.enable_steady_tick(std::time::Duration::from_millis(80));
+        spinner.enable_steady_tick(Duration::from_millis(80));
         spinner.set_message("applying window layouts (waiting for apps to start)...");
 
-        // Track which apps have been successfully laid out.
-        let mut done = vec![false; layouts_to_apply.len()];
+        // Search targets are stable; compute once (indexed by tracked slot).
+        let target_names: Vec<Vec<String>> = tracked_indices
+            .iter()
+            .map(|&i| {
+                let app = &profile.startup_apps[i];
+                window_manager::search_targets(&app.name, &app.command)
+            })
+            .collect();
 
-        // Single System instance, reused across all retries to avoid
-        // the expensive System::new_all() on every attempt.
+        let own_pid = std::process::id();
+        let start = Instant::now();
+        let budget = Duration::from_secs(30);
+        let weak_deadline = Duration::from_secs(10);
+
+        // Single System instance, reused across all ticks to avoid the
+        // expensive System::new_all() on every attempt.
         let mut sys = sysinfo::System::new();
+        let mut claimed: HashSet<isize> = HashSet::new();
+        let mut done = vec![false; tracked_indices.len()];
+        // Per tracked app: Some(Ok(score)) applied, Some(Err(msg)) apply failed.
+        let mut outcomes: Vec<Option<Result<u8, String>>> = vec![None; tracked_indices.len()];
+        // Best weak (score < 70) match seen so far, applied after weak_deadline.
+        let mut weak_best: Vec<Option<(isize, u8)>> = vec![None; tracked_indices.len()];
 
-        // Initial wait — give apps time to create their windows.
-        tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+        let mut tick: u32 = 0;
+        loop {
+            sys.refresh_processes();
+            let targets: Vec<window_manager::LayoutTarget> = tracked_indices
+                .iter()
+                .enumerate()
+                .filter(|(ti, _)| !done[*ti])
+                .map(|(ti, &ai)| window_manager::LayoutTarget {
+                    app_index: ti,
+                    targets: target_names[ti].clone(),
+                    owned_pid: owned_pids[ai],
+                })
+                .collect();
+            let ctx = window_manager::MatchContext {
+                prelaunch: prelaunch.clone(),
+                claimed: claimed.clone(),
+                own_pid,
+            };
+            let cands = window_manager::find_candidates(&sys, &targets, &ctx);
+            let assigned = window_manager::assign_candidates(&cands, tracked_indices.len());
 
-        // Retry loop: 25 attempts × 500ms = ~12.5 seconds max after initial wait.
-        for _ in 0..25 {
-            let mut pending = false;
-            for (idx, (_app_name, targets, layout)) in layouts_to_apply.iter().enumerate() {
-                if done[idx] {
+            for (ti, slot) in assigned.iter().enumerate() {
+                if done[ti] {
                     continue;
                 }
-                let mut applied = false;
-                for target in targets {
-                    if crate::integrations::window_manager::apply_layout_with_system(
-                        target, layout, &mut sys,
-                    )
-                    .is_ok()
-                    {
-                        applied = true;
-                        break;
+                let Some((hwnd, score)) = slot else { continue };
+                if *score >= 70 {
+                    let res = apply_to_window(&profile.startup_apps[tracked_indices[ti]], *hwnd);
+                    claimed.insert(*hwnd);
+                    done[ti] = true;
+                    outcomes[ti] =
+                        Some(res.map(|()| *score).map_err(|e| first_line(&e.to_string())));
+                } else if weak_best[ti].is_none_or(|(_, s)| *score > s) {
+                    weak_best[ti] = Some((*hwnd, *score));
+                }
+            }
+
+            // After the weak deadline, settle for the best heuristic match.
+            if start.elapsed() >= weak_deadline {
+                for ti in 0..done.len() {
+                    if done[ti] {
+                        continue;
+                    }
+                    if let Some((hwnd, score)) = weak_best[ti] {
+                        let res = apply_to_window(&profile.startup_apps[tracked_indices[ti]], hwnd);
+                        claimed.insert(hwnd);
+                        done[ti] = true;
+                        outcomes[ti] =
+                            Some(res.map(|()| score).map_err(|e| first_line(&e.to_string())));
                     }
                 }
-                if applied {
-                    done[idx] = true;
-                } else {
-                    pending = true;
-                }
             }
-            if !pending {
+
+            if done.iter().all(|d| *d) {
                 break;
             }
-            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+            let interval = Duration::from_millis(if tick < 8 {
+                250
+            } else if tick < 16 {
+                500
+            } else {
+                1000
+            });
+            tick += 1;
+            if start.elapsed() >= budget {
+                break;
+            }
+            tokio::time::sleep(interval).await;
+        }
+
+        // Last chance: any still-pending app with a remembered weak match.
+        for ti in 0..done.len() {
+            if done[ti] {
+                continue;
+            }
+            if let Some((hwnd, score)) = weak_best[ti] {
+                let res = apply_to_window(&profile.startup_apps[tracked_indices[ti]], hwnd);
+                done[ti] = true;
+                outcomes[ti] = Some(res.map(|()| score).map_err(|e| first_line(&e.to_string())));
+            }
         }
 
         spinner.finish_and_clear();
 
         // Record layout results in the report.
-        for (idx, (app_name, _, _)) in layouts_to_apply.iter().enumerate() {
-            if done[idx] {
-                report.layout_applied.push(app_name.clone());
-            } else {
-                report
+        for (ti, &ai) in tracked_indices.iter().enumerate() {
+            let app_name = &profile.startup_apps[ai].name;
+            match &outcomes[ti] {
+                Some(Ok(score)) => {
+                    let suffix = if *score >= 90 {
+                        " (pid)"
+                    } else if *score < 70 {
+                        " (heuristic)"
+                    } else {
+                        ""
+                    };
+                    report.layout_applied.push(format!("{app_name}{suffix}"));
+                }
+                Some(Err(e)) => report.layout_failed.push((app_name.clone(), e.clone())),
+                None => report
                     .layout_failed
-                    .push((app_name.clone(), "window not found after retries".into()));
+                    .push((app_name.clone(), "window not found after 30s".into())),
             }
         }
     }
 
     Ok(report)
+}
+
+/// Apply the post-match action for a tracked app: position it if it has a
+/// layout, otherwise apply its requested window state (min/max).
+fn apply_to_window(app: &StartupApp, hwnd_raw: isize) -> Result<()> {
+    let hwnd = HWND(hwnd_raw);
+    if let Some(layout) = &app.layout {
+        window_manager::position_window(hwnd, layout)
+    } else {
+        window_manager::set_window_state(hwnd, app.window);
+        Ok(())
+    }
 }
 
 pub async fn deactivate(odin_dir: &Path) -> Result<Option<String>> {
