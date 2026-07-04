@@ -9,6 +9,13 @@ pub enum PackageManager {
     Npm,
     Pip,
     Cargo,
+    Pipx,
+    Pnpm,
+    Yarn,
+    #[serde(rename = "dotnet")]
+    DotnetTool,
+    Go,
+    Uv,
     Manual,
     Unknown,
 }

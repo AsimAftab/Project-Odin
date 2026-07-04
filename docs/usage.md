@@ -108,10 +108,12 @@ odin login --url https://your-platform.example.com
 ```
 
 Odin verifies the connection, then asks whether to (1) upload each new snapshot
-automatically and (2) upload your existing local snapshots now. The API token is
-kept in the Windows credential store — never in `config.yaml`. Secret-looking
-environment values (names containing `TOKEN`, `KEY`, `SECRET`, `PASSWORD`, …) are
-redacted before upload.
+automatically and (2) upload your existing local snapshots now. The API token
+(format `odin_<keyId>_<secret>`) is kept in the Windows credential store — never
+in `config.yaml`. Secret-looking environment values are redacted before upload:
+both by variable name (containing `TOKEN`, `KEY`, `SECRET`, `PASSWORD`, …) and by
+value shape (GitHub tokens, `sk-…` keys, AWS keys, JWTs, PEM private keys), so a
+secret stored under a benign name is still masked.
 
 ```powershell
 # Upload snapshots on demand
@@ -143,6 +145,28 @@ odin config platform --url https://your-platform.example.com --token odin_xxxx..
 
 Uploads never modify or delete local snapshots — a failed upload leaves your
 vault intact and prints an `odin push` retry hint.
+
+### Scheduled Snapshots
+
+Register a recurring snapshot with the Windows Task Scheduler (per-user task, no
+admin required):
+
+```powershell
+# Daily at 09:00, uploading each snapshot to the platform
+odin schedule enable --interval daily --time 09:00 --push
+
+# Every hour, local snapshot only
+odin schedule enable --interval hourly
+
+# Is a scheduled task registered?
+odin schedule status
+
+# Remove it
+odin schedule disable
+```
+
+The task runs `odin snapshot [--push]` as the current user. This survives
+reboots, unlike the foreground `odin watch --follow` drift monitor.
 
 ### Check for Updates
 
@@ -180,10 +204,15 @@ odin config show --json
 
 ### Automated Backup
 
-Set up GitHub integration and then add to PowerShell profile:
+The durable way is a scheduled task (survives reboots):
 
 ```powershell
-# Add to $PROFILE
+odin schedule enable --interval daily --push
+```
+
+Alternatively, add to your PowerShell `$PROFILE` to back up on each login:
+
+```powershell
 # Auto-backup on login
 odin snapshot
 odin sync

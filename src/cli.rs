@@ -77,7 +77,52 @@ pub enum Commands {
     Current(CurrentArgs),
     /// Munin watches the network — test connectivity to developer services.
     Net(NetArgs),
+    /// Bind Odin to the Norns — schedule recurring snapshots (Windows Task Scheduler).
+    Schedule(ScheduleArgs),
 }
+
+#[derive(Debug, Args)]
+pub struct ScheduleArgs {
+    #[command(subcommand)]
+    pub command: ScheduleCommands,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum ScheduleCommands {
+    /// Register a recurring `odin snapshot` task.
+    Enable(ScheduleEnableArgs),
+    /// Remove the scheduled task.
+    Disable(ScheduleDisableArgs),
+    /// Show whether the scheduled task exists.
+    Status(ScheduleStatusArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct ScheduleEnableArgs {
+    /// How often to run: `daily` or `hourly`.
+    #[arg(long, default_value = "daily")]
+    pub interval: ScheduleInterval,
+
+    /// Time of day for daily runs (HH:MM, 24-hour). Ignored for hourly.
+    #[arg(long, default_value = "09:00")]
+    pub time: String,
+
+    /// Upload each scheduled snapshot to the platform (`snapshot --push`).
+    #[arg(long)]
+    pub push: bool,
+}
+
+#[derive(Debug, Clone, Copy, clap::ValueEnum)]
+pub enum ScheduleInterval {
+    Daily,
+    Hourly,
+}
+
+#[derive(Debug, Args)]
+pub struct ScheduleDisableArgs {}
+
+#[derive(Debug, Args)]
+pub struct ScheduleStatusArgs {}
 
 #[derive(Debug, Args)]
 pub struct ActivateArgs {

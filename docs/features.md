@@ -25,7 +25,9 @@ Captures the current machine state into `~/.odin` directory.
 **What gets captured:**
 - **Machine info**: OS version, hostname, CPU, memory, disk
 - **Environment variables**: PATH, user env vars, system env vars
-- **Installed packages**: winget, Chocolatey, Scoop packages (with versions)
+- **Installed packages** (with versions): winget, Chocolatey, Scoop, npm (global),
+  pip, cargo, pipx, pnpm (global), yarn (global), dotnet tools, `go install`
+  binaries, and uv tools
 - **Git configuration**: Git config (global + local if repos present)
 - **VS Code extensions**: All installed extensions with versions
 - **Windows Terminal settings**: Terminal configuration and color schemes
@@ -80,7 +82,10 @@ Reinstalls and restores environment from the latest snapshot.
 - **Dry-run by default**: Preview all changes without applying
 - **Smart install**: Skips packages already installed
 - **Safe defaults**: Requires `--apply` to actually modify system
-- **Package manager support**: winget, Chocolatey, Scoop restoration
+- **Package manager support**: winget, Chocolatey, Scoop, npm, pip, cargo, pipx,
+  pnpm, yarn, dotnet tools, go, and uv restoration. Restore scope is
+  configurable per manager and per section (env/PATH/VS Code/git) via
+  `restore` in `config.yaml`.
 - **Git config restore**: Restores git user, email, core settings
 - **VS Code extension restore**: Installs missing extensions
 - **Environment variable restore**: Sets PATH and user variables

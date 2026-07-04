@@ -25,3 +25,11 @@ Release artifacts:
 - `checksums.txt`
 
 The release body includes install/init instructions and points to `checksums.txt` for SHA-256 verification. These artifacts are the base for future packaging in MSI, winget, Chocolatey, and Scoop pipelines.
+
+## winget
+
+winget manifests are generated per-release, not committed to this repo. After a
+GitHub Release publishes, `.github/workflows/winget.yml` submits a manifest
+update PR to `microsoft/winget-pkgs` (the installer hash is computed from the
+published `odin.exe`). The first-ever submission is a manual `wingetcreate new`
+against the release asset URL. See `winget/README.md`.

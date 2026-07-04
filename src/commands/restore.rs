@@ -19,9 +19,12 @@ pub async fn run(ctx: AppContext, args: RestoreArgs) -> Result<()> {
     );
     println!("  {}", "─".repeat(60).dimmed());
 
-    RestoreService::new(SnapshotStore::new(ctx.odin_dir().clone()))
-        .restore(args.apply, args.continue_on_error)
-        .await?;
+    RestoreService::new(
+        SnapshotStore::new(ctx.odin_dir().clone()),
+        ctx.config().restore.clone(),
+    )
+    .restore(args.apply, args.continue_on_error)
+    .await?;
 
     println!();
     if args.apply {
