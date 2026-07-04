@@ -10,6 +10,7 @@ pub mod net;
 pub mod package;
 pub mod plugin;
 pub mod process;
+pub mod restore;
 pub mod snapshot;
 pub mod vscode;
 pub mod watcher;
