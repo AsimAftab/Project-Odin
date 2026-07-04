@@ -133,6 +133,8 @@ odin restore --apply
 
 The restore engine skips packages that already appear installed and logs each package-manager command before execution.
 
+`odin restore <snapshot-id>` also accepts a snapshot id: it checks local history first, and if not found there, fetches that snapshot from the Odin Platform (requires `odin login`) and restores it the same way.
+
 ## GitHub Sync
 
 `odin sync` initializes `%USERPROFILE%\.odin` as a Git repository when needed, commits changed snapshot files, and pushes to the configured remote.

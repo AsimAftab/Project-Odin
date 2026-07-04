@@ -52,12 +52,25 @@ odin freeport 8080
 ### Restore Your Environment
 
 ```powershell
-# Preview what would be restored
+# Preview what would be restored (from the current vault)
 odin restore
 
 # Apply all changes (install packages, restore config)
 odin restore --apply
+
+# Restore a specific local history snapshot
+odin restore <snapshot-id> --apply
+
+# Restore a snapshot hosted on the Odin Platform — no local history needed.
+# If <snapshot-id> isn't found locally, Odin fetches it from the platform
+# (requires `odin login`) and restores it the same way.
+odin restore <platform-snapshot-id> --apply
 ```
+
+This is the native alternative to downloading a "Restore script" from the
+dashboard: it goes through the same package-manager gating, skip-if-installed
+logic, and `RestoreConfig` scoping as a local restore — the exported `.ps1`
+script doesn't check what's already installed.
 
 ### Compare Changes
 

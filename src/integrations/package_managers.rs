@@ -105,7 +105,13 @@ async fn list_winget() -> Result<Vec<InstalledPackage>> {
             let version = pkg.get("Version").and_then(Value::as_str).map(ToOwned::to_owned);
             Some(InstalledPackage {
                 name: id.clone(),
-                install_command: Some(format!("winget install --id {id} --exact --accept-package-agreements --accept-source-agreements")),
+                // --source winget pins the query to the winget catalog only.
+                // Without it, winget also queries msstore; on machines where
+                // that source is unreachable (seen on some Windows Server
+                // AMIs), the whole lookup fails and winget demands an
+                // interactive --source choice even though --id already
+                // disambiguates the package.
+                install_command: Some(format!("winget install --id {id} --exact --source winget --accept-package-agreements --accept-source-agreements")),
                 id,
                 version,
                 source: PackageManager::Winget,

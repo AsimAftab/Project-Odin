@@ -37,6 +37,13 @@ impl RestoreService {
         .await
     }
 
+    /// True if a local history directory exists for `snapshot_id`. Used by
+    /// `odin restore <id>` to decide whether to restore from local history or
+    /// fall back to fetching the snapshot from the Odin Platform.
+    pub fn has_local_history(&self, snapshot_id: &str) -> bool {
+        self.store.root().join("history").join(snapshot_id).exists()
+    }
+
     pub async fn restore_from_id(
         &self,
         snapshot_id: &str,
@@ -73,6 +80,30 @@ impl RestoreService {
             &environment,
             &vscode,
             &git,
+            apply,
+            continue_on_error,
+        )
+        .await
+    }
+
+    /// Restores from already-fetched sections rather than reading them off
+    /// disk. Used by `odin restore <snapshot-id>` when the id isn't found in
+    /// local history and is instead pulled from the Odin Platform.
+    pub async fn restore_from_sections(
+        &self,
+        packages: &PackageSnapshot,
+        environment: &EnvironmentSnapshot,
+        vscode: &VsCodeExtensionsSnapshot,
+        git: &GitConfigSnapshot,
+        apply: bool,
+        continue_on_error: bool,
+    ) -> Result<()> {
+        run_restore(
+            &self.config,
+            packages,
+            environment,
+            vscode,
+            git,
             apply,
             continue_on_error,
         )
