@@ -9,6 +9,7 @@ use anyhow::{bail, Context, Result};
 use colored::Colorize;
 use indicatif::{ProgressBar, ProgressStyle};
 
+use crate::asgard::store::AsgardStore;
 use crate::integrations::platform::{Identity, PlatformClient, PollOutcome};
 use crate::integrations::process;
 use crate::models::config::OdinConfig;
@@ -164,13 +165,52 @@ impl PlatformService {
     pub async fn upload_latest(&self, config: &OdinConfig) -> Result<String> {
         let (url, token) = require_config(config)?;
         let store = SnapshotStore::new(self.odin_dir.clone());
-        let payload = build_payload(&store)
+        let profiles = self.profiles_section().await;
+        let payload = build_payload(&store, profiles.as_ref())
             .await
             .context("no local snapshot to upload — run `odin snapshot` first")?;
         let resp = PlatformClient::new(&url)?
             .upload_snapshot(&token, &payload)
             .await?;
         Ok(resp.snapshot_id.unwrap_or_default())
+    }
+
+    /// Builds the optional Asgard profiles summary for the ingest payload:
+    /// profile names/descriptions/app names plus the active profile. No
+    /// commands, args, or env values leave the machine (privacy). Returns None
+    /// when there are no profiles or the store can't be read — the upload
+    /// simply omits the key.
+    async fn profiles_section(&self) -> Option<serde_json::Value> {
+        let store = AsgardStore::new(&self.odin_dir);
+        let names = store.list().await.ok()?;
+        if names.is_empty() {
+            return None;
+        }
+
+        let mut profiles = Vec::new();
+        for name in &names {
+            let Ok(p) = store.load(name).await else {
+                continue;
+            };
+            profiles.push(serde_json::json!({
+                "name": p.name,
+                "description": p.description,
+                "startup_app_count": p.startup_apps.len(),
+                "browser_url_count": p.browser_urls.len(),
+                "has_vscode": p.vscode_workspace.is_some(),
+                "app_names": p.startup_apps.iter().map(|a| a.name.clone()).collect::<Vec<_>>(),
+            }));
+        }
+        if profiles.is_empty() {
+            return None;
+        }
+
+        let state = store.load_state().await.unwrap_or_default();
+        Some(serde_json::json!({
+            "profiles": profiles,
+            "active_profile": state.active_profile,
+            "activated_at": state.activated_at,
+        }))
     }
 
     /// Uploads every snapshot found under `~/.odin/history`. Idempotent on the
@@ -201,9 +241,10 @@ impl PlatformService {
                 .unwrap_or_else(|_| ProgressStyle::default_bar()),
         );
 
+        let profiles = self.profiles_section().await;
         for dir in dirs {
             let store = SnapshotStore::new(dir.clone());
-            match build_payload(&store).await {
+            match build_payload(&store, profiles.as_ref()).await {
                 Ok(payload) => match client.upload_snapshot(&token, &payload).await {
                     Ok(_) => uploaded += 1,
                     Err(e) => {
@@ -251,7 +292,11 @@ fn require_config(config: &OdinConfig) -> Result<(String, String)> {
 
 /// Builds the `/api/ingest` payload from a snapshot store, redacting secrets in
 /// the environment section. Requires all six snapshot files to be present.
-async fn build_payload(store: &SnapshotStore) -> Result<serde_json::Value> {
+/// `profiles` is the optional Asgard summary attached to every upload.
+async fn build_payload(
+    store: &SnapshotStore,
+    profiles: Option<&serde_json::Value>,
+) -> Result<serde_json::Value> {
     let machine = store.read_machine().await?;
     let environment = redact::redact_environment(store.read_environment().await?);
     let packages = store.read_packages().await?;
@@ -266,5 +311,8 @@ async fn build_payload(store: &SnapshotStore) -> Result<serde_json::Value> {
     map.insert("vscode".into(), serde_json::to_value(&vscode)?);
     map.insert("git".into(), serde_json::to_value(&git)?);
     map.insert("lock".into(), serde_json::to_value(&lock)?);
+    if let Some(profiles) = profiles {
+        map.insert("profiles".into(), profiles.clone());
+    }
     Ok(serde_json::Value::Object(map))
 }

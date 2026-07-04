@@ -89,12 +89,22 @@ pub async fn run(ctx: AppContext, args: SnapshotArgs) -> Result<()> {
 /// enabled (and not overridden by `--no-push`). Never fails the snapshot: a
 /// failed upload leaves local files intact and points the user at `odin push`.
 async fn maybe_push(ctx: &AppContext, args: &SnapshotArgs) {
+    let configured = platform_service::is_configured(ctx.config());
     let should_push = args.push || (ctx.config().platform.upload_on_snapshot && !args.no_push);
     if !should_push {
+        // Gentle one-liner for users who never connected the platform.
+        if !configured {
+            println!(
+                "  {}  tip: {} to back up snapshots to the Odin Platform",
+                "·".dimmed(),
+                "odin login".cyan()
+            );
+            println!();
+        }
         return;
     }
 
-    if !platform_service::is_configured(ctx.config()) {
+    if !configured {
         if args.push {
             println!(
                 "  {}  --push ignored: not connected. Run {} first.",

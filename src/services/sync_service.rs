@@ -79,6 +79,15 @@ impl SyncService {
         });
         process::checked(&git, &["-C", &root, "commit", "-m", &msg]).await?;
         process::checked(&git, &["-C", &root, "branch", "-M", branch]).await?;
+
+        // Never let git emit its raw "fatal: 'origin' does not appear to be a
+        // git repository" — check for the remote ourselves first.
+        let remotes = process::capture(&git, &["-C", &root, "remote"]).await?;
+        if !remotes.stdout.lines().any(|line| line == "origin") {
+            anyhow::bail!(
+                "no GitHub remote configured — run `odin config github` first (snapshot is committed locally)"
+            );
+        }
         process::checked(&git, &["-C", &root, "push", "-u", "origin", branch]).await?;
         println!();
         println!(

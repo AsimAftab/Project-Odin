@@ -1,9 +1,8 @@
 use std::collections::BTreeMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Stdio;
 
 use anyhow::{Context, Result};
-use tokio::process::Command;
 
 use crate::asgard::profile::{StartupApp, WindowState};
 
@@ -11,6 +10,96 @@ use crate::asgard::profile::{StartupApp, WindowState};
 pub struct LaunchSpec {
     pub program: String,
     pub args: Vec<String>,
+}
+
+/// How a startup app will be launched. Computed by [`plan_launch`] so the
+/// caller can know up-front whether the launch will yield an owned PID.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LaunchPlan {
+    /// Spawn the program directly (or via `cmd.exe /C` for `.cmd`/`.bat`
+    /// shims when `via_cmd` is true). We own the resulting PID.
+    DirectExe {
+        program: PathBuf,
+        args: Vec<String>,
+        via_cmd: bool,
+    },
+    /// UWP `shell:` AUMID launched via `explorer.exe <arg>` — a single
+    /// argument, so `!` in AUMIDs never hits cmd quoting hazards. PID not owned.
+    Explorer { arg: String },
+    /// Fall back to `cmd /C start` (URLs, `.lnk`/`.url`, documents,
+    /// unresolvable commands). PID not owned.
+    ShellStart(LaunchSpec),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LaunchOutcome {
+    pub pid: Option<u32>,
+}
+
+/// True if the command is a UWP `shell:` AUMID (case-insensitive).
+pub fn is_shell_command(s: &str) -> bool {
+    s.get(..6).is_some_and(|p| p.eq_ignore_ascii_case("shell:"))
+}
+
+fn has_extension(path: &Path, ext: &str) -> bool {
+    path.extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| e.eq_ignore_ascii_case(ext))
+}
+
+/// Decide how to launch `app`, using `resolve` to map bare command names to
+/// paths (production uses `which`).
+pub fn plan_launch_with_resolver(
+    app: &StartupApp,
+    resolve: impl Fn(&str) -> Option<PathBuf>,
+) -> LaunchPlan {
+    if looks_like_url(&app.command) {
+        return LaunchPlan::ShellStart(build_spec(app));
+    }
+
+    if is_shell_command(&app.command) {
+        return LaunchPlan::Explorer {
+            arg: app.command.clone(),
+        };
+    }
+
+    let as_path = Path::new(&app.command);
+    if as_path.is_absolute() && has_extension(as_path, "exe") && as_path.exists() {
+        return LaunchPlan::DirectExe {
+            program: as_path.to_path_buf(),
+            args: app.args.clone(),
+            via_cmd: false,
+        };
+    }
+
+    if let Some(resolved) = resolve(&app.command) {
+        if has_extension(&resolved, "exe") {
+            return LaunchPlan::DirectExe {
+                program: resolved,
+                args: app.args.clone(),
+                via_cmd: false,
+            };
+        }
+        if has_extension(&resolved, "cmd") || has_extension(&resolved, "bat") {
+            // Run the shim through cmd.exe WITHOUT `start`, so the cmd process
+            // we spawn is the parent of the real app — descendant matching in
+            // the window manager can then find the real window.
+            let mut args = vec!["/C".to_string(), resolved.to_string_lossy().to_string()];
+            args.extend(app.args.iter().cloned());
+            return LaunchPlan::DirectExe {
+                program: PathBuf::from("cmd.exe"),
+                args,
+                via_cmd: true,
+            };
+        }
+    }
+
+    // .lnk/.url/documents/unresolvable — let the shell figure it out.
+    LaunchPlan::ShellStart(build_spec(app))
+}
+
+pub fn plan_launch(app: &StartupApp) -> LaunchPlan {
+    plan_launch_with_resolver(app, |c| which::which(c).ok())
 }
 
 pub fn build_spec(app: &StartupApp) -> LaunchSpec {
@@ -41,10 +130,33 @@ pub fn build_url_spec(url: &str) -> LaunchSpec {
     }
 }
 
-pub fn launch(app: &StartupApp, env: &BTreeMap<String, String>) -> Result<()> {
-    let spec = build_spec(app);
-    spawn_detached(&spec, env).with_context(|| format!("failed to launch app `{}`", app.name))?;
-    Ok(())
+pub async fn launch(app: &StartupApp, env: &BTreeMap<String, String>) -> Result<LaunchOutcome> {
+    match plan_launch(app) {
+        LaunchPlan::DirectExe {
+            program,
+            args,
+            via_cmd: _,
+        } => {
+            let pid = spawn_direct(&program, &args, app.cwd.as_deref(), env)
+                .with_context(|| format!("failed to launch app `{}`", app.name))?;
+            Ok(LaunchOutcome { pid: Some(pid) })
+        }
+        LaunchPlan::Explorer { arg } => {
+            spawn_direct(
+                Path::new("explorer.exe"),
+                std::slice::from_ref(&arg),
+                None,
+                env,
+            )
+            .with_context(|| format!("failed to launch app `{}`", app.name))?;
+            Ok(LaunchOutcome { pid: None })
+        }
+        LaunchPlan::ShellStart(spec) => {
+            spawn_detached(&spec, env)
+                .with_context(|| format!("failed to launch app `{}`", app.name))?;
+            Ok(LaunchOutcome { pid: None })
+        }
+    }
 }
 
 pub fn launch_url(url: &str) -> Result<()> {
@@ -54,8 +166,38 @@ pub fn launch_url(url: &str) -> Result<()> {
     Ok(())
 }
 
+/// Spawn a process directly with std, detached from our console. The `Child`
+/// is dropped — std's `Command` does not kill on drop — but its PID is
+/// returned so the window manager can match windows by process.
+fn spawn_direct(
+    program: &Path,
+    args: &[String],
+    cwd: Option<&str>,
+    env: &BTreeMap<String, String>,
+) -> Result<u32> {
+    use std::os::windows::process::CommandExt;
+    use windows::Win32::System::Threading::{CREATE_NEW_CONSOLE, CREATE_NEW_PROCESS_GROUP};
+
+    let mut cmd = std::process::Command::new(program);
+    cmd.args(args)
+        .creation_flags(CREATE_NEW_PROCESS_GROUP.0 | CREATE_NEW_CONSOLE.0)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+    if let Some(cwd) = cwd.filter(|s| !s.is_empty()) {
+        cmd.current_dir(cwd);
+    }
+    for (k, v) in env {
+        cmd.env(k, v);
+    }
+    let child = cmd
+        .spawn()
+        .with_context(|| format!("failed to spawn `{}`", program.display()))?;
+    Ok(child.id())
+}
+
 fn spawn_detached(spec: &LaunchSpec, env: &BTreeMap<String, String>) -> Result<()> {
-    let mut cmd = Command::new(&spec.program);
+    let mut cmd = tokio::process::Command::new(&spec.program);
     cmd.args(&spec.args);
     cmd.stdin(Stdio::null());
     cmd.stdout(Stdio::null());
@@ -73,21 +215,18 @@ pub fn looks_like_url(s: &str) -> bool {
     lower.starts_with("http://") || lower.starts_with("https://")
 }
 
-pub fn open_vscode_workspace(workspace: &Path) -> Result<()> {
-    let workspace_str = workspace.to_string_lossy().to_string();
-    let spec = LaunchSpec {
-        program: "cmd.exe".into(),
-        args: vec![
-            "/C".into(),
-            "start".into(),
-            String::new(),
-            "code".into(),
-            workspace_str.clone(),
-        ],
+pub async fn open_vscode_workspace(workspace: &Path) -> Result<LaunchOutcome> {
+    let app = StartupApp {
+        name: "vscode".into(),
+        command: "code".into(),
+        args: vec![workspace.to_string_lossy().to_string()],
+        cwd: None,
+        window: WindowState::Normal,
+        layout: None,
     };
-    spawn_detached(&spec, &BTreeMap::new())
-        .with_context(|| format!("failed to open VS Code workspace `{}`", workspace.display()))?;
-    Ok(())
+    launch(&app, &BTreeMap::new())
+        .await
+        .with_context(|| format!("failed to open VS Code workspace `{}`", workspace.display()))
 }
 
 #[cfg(test)]
@@ -114,30 +253,104 @@ mod tests {
     }
 
     #[test]
-    fn build_spec_normal_no_cwd() {
-        let s = build_spec(&app(WindowState::Normal, None, "notepad", &[]));
-        assert_eq!(s.program, "cmd.exe");
-        assert_eq!(s.args, vec!["/C", "start", "", "notepad"]);
-    }
-
-    #[test]
-    fn build_spec_minimized_with_cwd_and_args() {
-        let s = build_spec(&app(
-            WindowState::Minimized,
-            Some("C:\\repos"),
-            "code",
-            &["."],
-        ));
+    fn plan_bare_exe_resolves_to_direct_exe() {
+        let plan =
+            plan_launch_with_resolver(&app(WindowState::Normal, None, "notepad", &[]), |c| {
+                assert_eq!(c, "notepad");
+                Some(PathBuf::from(r"C:\Windows\notepad.exe"))
+            });
         assert_eq!(
-            s.args,
-            vec!["/C", "start", "", "/MIN", "/D", "C:\\repos", "code", "."]
+            plan,
+            LaunchPlan::DirectExe {
+                program: PathBuf::from(r"C:\Windows\notepad.exe"),
+                args: vec![],
+                via_cmd: false,
+            }
         );
     }
 
     #[test]
-    fn build_spec_maximized() {
-        let s = build_spec(&app(WindowState::Maximized, None, "wt.exe", &["new-tab"]));
-        assert_eq!(s.args, vec!["/C", "start", "", "/MAX", "wt.exe", "new-tab"]);
+    fn plan_cmd_shim_goes_via_cmd_without_start() {
+        let plan =
+            plan_launch_with_resolver(&app(WindowState::Normal, None, "code", &["."]), |_| {
+                Some(PathBuf::from(r"C:\Program Files\VS Code\bin\code.cmd"))
+            });
+        assert_eq!(
+            plan,
+            LaunchPlan::DirectExe {
+                program: PathBuf::from("cmd.exe"),
+                args: vec![
+                    "/C".into(),
+                    r"C:\Program Files\VS Code\bin\code.cmd".into(),
+                    ".".into(),
+                ],
+                via_cmd: true,
+            }
+        );
+    }
+
+    #[test]
+    fn plan_shell_aumid_goes_via_explorer_verbatim() {
+        let cmd = "shell:AppsFolder\\Microsoft.WindowsCalculator_8wekyb3d8bbwe!App";
+        let plan = plan_launch_with_resolver(&app(WindowState::Normal, None, cmd, &[]), |_| {
+            panic!("resolver must not be consulted for shell: commands")
+        });
+        assert_eq!(
+            plan,
+            LaunchPlan::Explorer {
+                arg: cmd.to_string()
+            }
+        );
+    }
+
+    #[test]
+    fn plan_url_goes_via_shell_start() {
+        let plan = plan_launch_with_resolver(
+            &app(WindowState::Normal, None, "https://example.com", &[]),
+            |_| panic!("resolver must not be consulted for URLs"),
+        );
+        assert_eq!(
+            plan,
+            LaunchPlan::ShellStart(LaunchSpec {
+                program: "cmd.exe".into(),
+                args: vec![
+                    "/C".into(),
+                    "start".into(),
+                    String::new(),
+                    "https://example.com".into(),
+                ],
+            })
+        );
+    }
+
+    #[test]
+    fn plan_unresolvable_lnk_falls_back_to_shell_start_with_flags() {
+        let plan = plan_launch_with_resolver(
+            &app(WindowState::Minimized, Some("C:\\repos"), "foo.lnk", &[]),
+            |_| None,
+        );
+        assert_eq!(
+            plan,
+            LaunchPlan::ShellStart(LaunchSpec {
+                program: "cmd.exe".into(),
+                args: vec![
+                    "/C".into(),
+                    "start".into(),
+                    String::new(),
+                    "/MIN".into(),
+                    "/D".into(),
+                    "C:\\repos".into(),
+                    "foo.lnk".into(),
+                ],
+            })
+        );
+
+        let plan =
+            plan_launch_with_resolver(&app(WindowState::Maximized, None, "foo.lnk", &[]), |_| None);
+        let LaunchPlan::ShellStart(spec) = plan else {
+            panic!("expected ShellStart");
+        };
+        assert_eq!(spec.args, vec!["/C", "start", "", "/MAX", "foo.lnk"]);
     }
 
     #[test]
@@ -150,5 +363,13 @@ mod tests {
     fn empty_cwd_is_skipped() {
         let s = build_spec(&app(WindowState::Normal, Some(""), "notepad", &[]));
         assert!(!s.args.iter().any(|a| a == "/D"));
+    }
+
+    #[test]
+    fn shell_command_detection_is_case_insensitive() {
+        assert!(is_shell_command("shell:AppsFolder\\X!App"));
+        assert!(is_shell_command("SHELL:AppsFolder\\X!App"));
+        assert!(!is_shell_command("notepad"));
+        assert!(!is_shell_command("shel"));
     }
 }
