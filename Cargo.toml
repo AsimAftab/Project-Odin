@@ -1,6 +1,6 @@
 [package]
 name = "odin"
-version = "0.9.0"
+version = "0.10.0"
 edition = "2021"
 authors = ["Odin contributors"]
 description = "Windows developer workstation snapshot, restore, sync, and diagnostics CLI"

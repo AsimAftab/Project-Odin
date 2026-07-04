@@ -125,15 +125,19 @@ Snapshots are plain JSON so they can be reviewed, committed, and restored withou
 
 ## Restore Safety
 
-`odin restore` runs in dry-run mode by default. Use `--apply` to execute install and restore operations:
+`odin restore` follows a **plan → confirm → apply** flow. Without `--apply` it prints a full plan — what will install, what's already present, what's skipped, and what needs attention — and touches nothing:
 
 ```powershell
-odin restore --apply
+odin restore                                   # plan only
+odin restore --apply                           # execute
+odin restore --interactive --apply             # checklist → plan → confirm → run
+odin restore --only packages --managers winget --exclude Docker.DockerDesktop --apply
+odin restore --apply --bootstrap-managers      # fresh machine: installs scoop/choco/pnpm… as needed
 ```
 
-The restore engine skips packages that already appear installed and logs each package-manager command before execution.
+The engine skips packages already installed, and after `--apply` prints a per-manager summary plus a **manual-install list** for everything it couldn't handle (not in the manager's catalog, manager missing, no install command, or failed) with reasons and suggested commands. The full report lands in `~/.odin/logs/restore-<timestamp>.json`.
 
-`odin restore <snapshot-id>` also accepts a snapshot id: it checks local history first, and if not found there, fetches that snapshot from the Odin Platform (requires `odin login`) and restores it the same way.
+`odin restore <snapshot-id>` also accepts a snapshot id: it checks local history first, and if not found there, fetches that snapshot from the Odin Platform (requires `odin login`) and restores it the same way. See [docs/usage.md](docs/usage.md) for the full flag reference.
 
 ## GitHub Sync
 

@@ -51,26 +51,65 @@ odin freeport 8080
 
 ### Restore Your Environment
 
+Restore is **plan → confirm → apply**: without `--apply`, Odin classifies every
+package and section into a plan (what will install, what's already present,
+what's skipped, what needs attention) and touches nothing.
+
 ```powershell
-# Preview what would be restored (from the current vault)
+# Show the plan (dry-run, no side effects)
 odin restore
 
-# Apply all changes (install packages, restore config)
+# Execute the plan
 odin restore --apply
 
-# Restore a specific local history snapshot
+# Restore a local history snapshot, or — if the id isn't found locally — the
+# same snapshot fetched from the Odin Platform (requires `odin login`)
 odin restore <snapshot-id> --apply
-
-# Restore a snapshot hosted on the Odin Platform — no local history needed.
-# If <snapshot-id> isn't found locally, Odin fetches it from the platform
-# (requires `odin login`) and restores it the same way.
-odin restore <platform-snapshot-id> --apply
 ```
 
+**Full-control flags** (combine freely):
+
+| Flag | Effect |
+| --- | --- |
+| `--only packages,git` | Restore only these sections (overrides config — re-enables config-disabled sections) |
+| `--skip env,path` | Restore everything except these sections |
+| `--managers winget,scoop` | Only restore packages from these managers |
+| `--exclude Docker.DockerDesktop,npm` | Skip specific package ids (case-insensitive) |
+| `-i, --interactive` | Pick sections + managers in a checklist, review the plan, confirm before applying |
+| `--bootstrap-managers` | Auto-install missing managers (scoop, choco, pnpm, yarn, pipx, uv) when the snapshot needs them |
+| `--json` | Emit the plan (dry-run) or full report (`--apply`) as JSON — CI-friendly, no prompts |
+| `--non-interactive` | Never prompt; missing managers go straight to the manual list |
+| `--continue-on-error` | Keep going after a package install fails |
+
+Sections: `packages`, `extensions` (VS Code), `git`, `env` (user variables), `path`.
+
+```powershell
+# Examples
+odin restore --only packages --managers winget --exclude Docker.DockerDesktop --apply
+odin restore --interactive --apply         # checklist → plan → confirm → run
+odin restore --apply --bootstrap-managers  # fresh VM: install scoop/choco etc. as needed
+odin restore --json | ConvertFrom-Json     # machine-readable plan
+```
+
+**End-of-run report.** After `--apply`, Odin prints a per-manager summary table
+and — the important part — a **MANUAL INSTALL REQUIRED** table listing every
+package it couldn't handle (not available in the manager, manager missing, no
+install command, or failed) with a reason and a suggested command. The full
+report is also written to `~/.odin/logs/restore-<timestamp>.json`.
+
+**Exit codes:** `0` on success (manual-list items alone don't fail the run);
+non-zero if any install actually errored. With `--continue-on-error` the run
+completes fully but still exits non-zero if something failed.
+
+**Bootstrap caveats:** scoop refuses elevated shells — run Odin in a regular
+(non-admin) prompt for scoop bootstrap; Chocolatey needs an admin shell. If a
+freshly-bootstrapped manager isn't visible on the current session's PATH, its
+packages stay on the manual list — restart your shell and re-run
+`odin restore --apply`.
+
 This is the native alternative to downloading a "Restore script" from the
-dashboard: it goes through the same package-manager gating, skip-if-installed
-logic, and `RestoreConfig` scoping as a local restore — the exported `.ps1`
-script doesn't check what's already installed.
+dashboard: it goes through the same manager gating and skip-if-installed logic —
+the exported `.ps1` script doesn't check what's already installed.
 
 ### Compare Changes
 
