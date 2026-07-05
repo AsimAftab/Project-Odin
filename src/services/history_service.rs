@@ -103,6 +103,25 @@ impl HistoryService {
         {
             return Ok(meta.id.clone());
         }
+        // Git-style short ids: the platform dashboard shows truncated ids
+        // (`5656cc13…`), so accept an unambiguous prefix (≥ 6 chars).
+        if id_or_tag.len() >= 6 {
+            let matches: Vec<&str> = index
+                .snapshots
+                .iter()
+                .filter(|m| m.id.starts_with(id_or_tag))
+                .map(|m| m.id.as_str())
+                .collect();
+            match matches.as_slice() {
+                [single] => return Ok((*single).to_string()),
+                [] => {}
+                _ => anyhow::bail!(
+                    "snapshot prefix '{}' is ambiguous ({} matches) — add more characters",
+                    id_or_tag,
+                    matches.len()
+                ),
+            }
+        }
         anyhow::bail!("snapshot or tag '{}' not found in history", id_or_tag)
     }
 

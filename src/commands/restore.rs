@@ -37,11 +37,20 @@ pub async fn run(ctx: AppContext, args: RestoreArgs) -> Result<()> {
         println!("  {}", "─".repeat(60).dimmed());
     }
 
-    // Load the four sections from wherever the snapshot lives.
-    let (packages, environment, vscode, git) = match &args.snapshot {
-        None => service.load_vault().await?,
-        Some(id) if service.has_local_history(id) => service.load_history(id).await?,
-        Some(id) => {
+    // Load the four sections from wherever the snapshot lives. Local ids go
+    // through the history index resolver (exact id, tag, or git-style
+    // unambiguous prefix); anything not found locally is fetched from the
+    // platform, which also accepts short-id prefixes.
+    let local_id = args.snapshot.as_deref().and_then(|id| {
+        crate::services::history_service::HistoryService::new(ctx.odin_dir().clone())
+            .resolve(id)
+            .ok()
+            .filter(|resolved| service.has_local_history(resolved))
+    });
+    let (packages, environment, vscode, git) = match (&args.snapshot, &local_id) {
+        (None, _) => service.load_vault().await?,
+        (Some(_), Some(resolved)) => service.load_history(resolved).await?,
+        (Some(id), None) => {
             if !options.quiet {
                 println!(
                     "  {}  no local history for {} — checking the Odin Platform…",
