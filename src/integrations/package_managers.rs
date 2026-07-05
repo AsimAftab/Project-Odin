@@ -71,6 +71,16 @@ pub async fn list_packages() -> Result<PackageSnapshot> {
     Ok(PackageSnapshot { packages })
 }
 
+/// Canonical winget install command for a package id. `--source winget` pins
+/// the query to the winget catalog only — without it winget also queries
+/// msstore, which on machines where that source is broken (some Windows
+/// Server AMIs) fails the whole lookup and demands interactive --source
+/// disambiguation even though --id + --exact already pin the package.
+/// Shared by capture AND restore so old snapshots replay the fixed form.
+pub(crate) fn winget_install_command(id: &str) -> String {
+    format!("winget install --id {id} --exact --source winget --accept-package-agreements --accept-source-agreements")
+}
+
 async fn list_winget() -> Result<Vec<InstalledPackage>> {
     let Some(winget) = executable("winget") else {
         return Ok(Vec::new());
@@ -101,19 +111,22 @@ async fn list_winget() -> Result<Vec<InstalledPackage>> {
         .and_then(Value::as_array)
         .into_iter()
         .flatten()
-        .flat_map(|source| source.get("Packages").and_then(Value::as_array).into_iter().flatten())
+        .flat_map(|source| {
+            source
+                .get("Packages")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+        })
         .filter_map(|pkg| {
             let id = pkg.get("PackageIdentifier")?.as_str()?.to_string();
-            let version = pkg.get("Version").and_then(Value::as_str).map(ToOwned::to_owned);
+            let version = pkg
+                .get("Version")
+                .and_then(Value::as_str)
+                .map(ToOwned::to_owned);
             Some(InstalledPackage {
                 name: id.clone(),
-                // --source winget pins the query to the winget catalog only.
-                // Without it, winget also queries msstore; on machines where
-                // that source is unreachable (seen on some Windows Server
-                // AMIs), the whole lookup fails and winget demands an
-                // interactive --source choice even though --id already
-                // disambiguates the package.
-                install_command: Some(format!("winget install --id {id} --exact --source winget --accept-package-agreements --accept-source-agreements")),
+                install_command: Some(winget_install_command(&id)),
                 id,
                 version,
                 source: PackageManager::Winget,
@@ -596,7 +609,7 @@ pub(crate) fn choco_executable() -> Option<String> {
     None
 }
 
-fn choco_candidates() -> Vec<PathBuf> {
+pub(crate) fn choco_candidates() -> Vec<PathBuf> {
     let mut candidates = Vec::new();
     if let Ok(chocolatey_install) = std::env::var("ChocolateyInstall") {
         candidates.push(Path::new(&chocolatey_install).join(r"bin\choco.exe"));
@@ -609,7 +622,7 @@ fn choco_candidates() -> Vec<PathBuf> {
     candidates
 }
 
-fn scoop_candidates() -> Vec<PathBuf> {
+pub(crate) fn scoop_candidates() -> Vec<PathBuf> {
     let mut candidates = Vec::new();
     if let Ok(user_profile) = std::env::var("USERPROFILE") {
         candidates.push(Path::new(&user_profile).join(r"scoop\shims\scoop.cmd"));

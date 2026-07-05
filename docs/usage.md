@@ -79,7 +79,7 @@ odin restore <snapshot-id> --apply
 | `--bootstrap-managers` | Auto-install missing managers (scoop, choco, pnpm, yarn, pipx, uv) when the snapshot needs them |
 | `--json` | Emit the plan (dry-run) or full report (`--apply`) as JSON — CI-friendly, no prompts |
 | `--non-interactive` | Never prompt; missing managers go straight to the manual list |
-| `--continue-on-error` | Keep going after a package install fails |
+| `--fail-fast` | Stop at the first failed install (default: keep going and collect failures into the report) |
 
 Sections: `packages`, `extensions` (VS Code), `git`, `env` (user variables), `path`.
 
@@ -98,8 +98,9 @@ install command, or failed) with a reason and a suggested command. The full
 report is also written to `~/.odin/logs/restore-<timestamp>.json`.
 
 **Exit codes:** `0` on success (manual-list items alone don't fail the run);
-non-zero if any install actually errored. With `--continue-on-error` the run
-completes fully but still exits non-zero if something failed.
+non-zero if any install actually errored. By default the run always completes
+fully — failures are collected, not fatal; pass `--fail-fast` to abort at the
+first failed install instead.
 
 **Bootstrap caveats:** scoop refuses elevated shells — run Odin in a regular
 (non-admin) prompt for scoop bootstrap; Chocolatey needs an admin shell. If a
