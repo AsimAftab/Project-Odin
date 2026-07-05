@@ -17,46 +17,58 @@ use crate::services::restore_service::RestoreOptions;
 use crate::utils::terminal;
 
 pub struct BootstrapRecipe {
-    pub command: &'static str,
+    /// Human-readable command, for display and manual-list hints.
+    pub display: String,
+    pub program: &'static str,
+    pub args: Vec<String>,
     /// Caveat printed before running.
     pub note: Option<&'static str>,
     /// Executable that must already exist for this recipe to work.
     pub requires: Option<&'static str>,
 }
 
-/// The bootstrap one-liner for a manager, if we trust one.
-pub fn recipe_for(manager: &PackageManager) -> Option<BootstrapRecipe> {
+/// The bootstrap recipe for a manager, if we trust one. `elevated` switches
+/// the scoop recipe to the officially supported admin-shell form — the plain
+/// installer aborts under an elevated prompt.
+pub fn recipe_for(manager: &PackageManager, elevated: bool) -> Option<BootstrapRecipe> {
     match manager {
-        PackageManager::Scoop => Some(BootstrapRecipe {
-            command: r#"powershell -NoProfile -Command "iwr -useb get.scoop.sh | iex""#,
-            note: Some(
-                "scoop refuses elevated shells — if this fails under an admin prompt, \
-                 re-run odin in a regular shell",
-            ),
-            requires: None,
-        }),
-        PackageManager::Chocolatey => Some(BootstrapRecipe {
-            command: "winget install --id Chocolatey.Chocolatey -e --source winget --accept-package-agreements --accept-source-agreements",
-            note: Some("Chocolatey needs an elevated (admin) shell"),
-            requires: Some("winget"),
-        }),
-        PackageManager::Uv => Some(BootstrapRecipe {
-            command: "winget install --id astral-sh.uv -e --source winget --accept-package-agreements --accept-source-agreements",
-            note: None,
-            requires: Some("winget"),
-        }),
-        PackageManager::Pnpm => Some(BootstrapRecipe {
-            command: "npm install -g pnpm",
-            note: None,
-            requires: Some("npm"),
-        }),
-        PackageManager::Yarn => Some(BootstrapRecipe {
-            command: "npm install -g yarn",
-            note: None,
-            requires: Some("npm"),
-        }),
+        PackageManager::Scoop => {
+            let script = if elevated {
+                r#"iex "& {$(irm get.scoop.sh)} -RunAsAdmin""#
+            } else {
+                "iwr -useb get.scoop.sh | iex"
+            };
+            Some(BootstrapRecipe {
+                display: format!("powershell -NoProfile -Command \"{script}\""),
+                program: "powershell",
+                args: vec![
+                    "-NoProfile".to_string(),
+                    "-Command".to_string(),
+                    script.to_string(),
+                ],
+                note: if elevated {
+                    Some("elevated shell detected — using scoop's -RunAsAdmin installer")
+                } else {
+                    None
+                },
+                requires: None,
+            })
+        }
+        PackageManager::Chocolatey => Some(winget_recipe(
+            "Chocolatey.Chocolatey",
+            Some("Chocolatey needs an elevated (admin) shell"),
+        )),
+        PackageManager::Uv => Some(winget_recipe("astral-sh.uv", None)),
+        PackageManager::Pnpm => Some(npm_recipe("pnpm")),
+        PackageManager::Yarn => Some(npm_recipe("yarn")),
         PackageManager::Pipx => Some(BootstrapRecipe {
-            command: "pip install --user pipx",
+            display: "pip install --user pipx".to_string(),
+            program: "pip",
+            args: vec![
+                "install".to_string(),
+                "--user".to_string(),
+                "pipx".to_string(),
+            ],
             note: Some("run `pipx ensurepath` afterwards so pipx apps land on PATH"),
             requires: Some("pip"),
         }),
@@ -66,11 +78,44 @@ pub fn recipe_for(manager: &PackageManager) -> Option<BootstrapRecipe> {
     }
 }
 
+fn winget_recipe(id: &str, note: Option<&'static str>) -> BootstrapRecipe {
+    let args: Vec<String> = [
+        "install",
+        "--id",
+        id,
+        "-e",
+        "--source",
+        "winget",
+        "--accept-package-agreements",
+        "--accept-source-agreements",
+    ]
+    .iter()
+    .map(ToString::to_string)
+    .collect();
+    BootstrapRecipe {
+        display: format!("winget {}", args.join(" ")),
+        program: "winget",
+        args,
+        note,
+        requires: Some("winget"),
+    }
+}
+
+fn npm_recipe(package: &str) -> BootstrapRecipe {
+    BootstrapRecipe {
+        display: format!("npm install -g {package}"),
+        program: "npm",
+        args: vec!["install".to_string(), "-g".to_string(), package.to_string()],
+        note: None,
+        requires: Some("npm"),
+    }
+}
+
 /// Manual-list hint for a missing manager: the bootstrap command if we have a
 /// recipe, otherwise a runtime-install pointer.
 pub fn install_hint(manager: &PackageManager) -> Option<String> {
-    if let Some(recipe) = recipe_for(manager) {
-        return Some(recipe.command.to_string());
+    if let Some(recipe) = recipe_for(manager, false) {
+        return Some(recipe.display);
     }
     let hint = match manager {
         PackageManager::Npm => "install Node.js: winget install OpenJS.NodeJS.LTS",
@@ -84,11 +129,20 @@ pub fn install_hint(manager: &PackageManager) -> Option<String> {
     Some(hint.to_string())
 }
 
+/// True when the current process runs elevated (admin). `net session` exits 0
+/// only for administrators; cheap and dependency-free.
+async fn is_elevated() -> bool {
+    process::capture("net", &["session"])
+        .await
+        .map(|out| out.code == 0)
+        .unwrap_or(false)
+}
+
 /// Offers/performs bootstrap for every plan-missing manager. On success the
 /// manager's `ManagerMissing` packages are upgraded to `WillInstall` and it is
 /// removed from `missing_managers`. Declined, recipe-less, or failed managers
 /// stay missing (→ manual list). Returns human-readable labels of what was
-/// bootstrapped (suffixed when a shell restart is needed).
+/// bootstrapped.
 pub async fn bootstrap_missing(
     plan: &mut RestorePlan,
     options: &RestoreOptions,
@@ -99,6 +153,7 @@ pub async fn bootstrap_missing(
     }
 
     let can_prompt = !options.non_interactive && !options.quiet && terminal::is_interactive();
+    let elevated = is_elevated().await;
 
     for manager in plan.missing_managers.clone() {
         let label = manager_label(&manager);
@@ -108,7 +163,7 @@ pub async fn bootstrap_missing(
             .filter(|p| p.source == manager && p.action == PlanAction::ManagerMissing)
             .count();
 
-        let Some(recipe) = recipe_for(&manager) else {
+        let Some(recipe) = recipe_for(&manager, elevated) else {
             if !options.quiet {
                 println!(
                     "  {}  {} is not installed ({} package(s) need it) — {}",
@@ -169,35 +224,19 @@ pub async fn bootstrap_missing(
             println!(
                 "  {}  {}",
                 "→".bright_blue().bold(),
-                recipe.command.dimmed()
+                recipe.display.dimmed()
             );
         }
 
-        let (program, args) = split(recipe.command);
-        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        let outcome = process::capture(&program, &arg_refs).await;
-        let succeeded = matches!(&outcome, Ok(out) if out.code == 0);
+        let arg_refs: Vec<&str> = recipe.args.iter().map(String::as_str).collect();
+        let outcome = process::capture(recipe.program, &arg_refs).await;
+        // Trust the post-install probe over the exit code: PowerShell
+        // one-liners can exit 0 even when the installer aborted (seen with
+        // scoop under an admin shell), and for scoop/choco the probe checks
+        // well-known install paths, so it works with a stale session PATH.
+        let visible = manager_visible(&manager);
 
-        if !succeeded {
-            if !options.quiet {
-                let detail = match &outcome {
-                    Ok(out) if !out.stderr.is_empty() => out.stderr.clone(),
-                    Ok(out) => out.stdout.clone(),
-                    Err(e) => format!("{e:#}"),
-                };
-                eprintln!(
-                    "  {}  bootstrapping {} failed: {}",
-                    "✗".red().bold(),
-                    label.cyan(),
-                    detail.lines().last().unwrap_or("").trim()
-                );
-            }
-            continue;
-        }
-
-        // The new shims may not be on this process's PATH yet — re-probe via
-        // the candidate-path-aware detectors where we have them.
-        if manager_visible(&manager) {
+        if visible {
             for p in plan.packages.iter_mut() {
                 if p.source == manager && p.action == PlanAction::ManagerMissing {
                     p.action = PlanAction::WillInstall;
@@ -210,6 +249,28 @@ pub async fn bootstrap_missing(
                     "  {}  {} installed — continuing",
                     "✓".green().bold(),
                     label.cyan()
+                );
+            }
+            continue;
+        }
+
+        let path_independent_probe =
+            matches!(manager, PackageManager::Scoop | PackageManager::Chocolatey);
+        if path_independent_probe {
+            // The probe checks the actual install location, so not-visible
+            // means the install genuinely failed — say so honestly instead of
+            // a false "restart your shell".
+            if !options.quiet {
+                let detail = match &outcome {
+                    Ok(out) if !out.stderr.is_empty() => out.stderr.clone(),
+                    Ok(out) => out.stdout.clone(),
+                    Err(e) => format!("{e:#}"),
+                };
+                eprintln!(
+                    "  {}  bootstrapping {} failed: {}",
+                    "✗".red().bold(),
+                    label.cyan(),
+                    detail.lines().last().unwrap_or("(no output)").trim()
                 );
             }
         } else {
@@ -243,24 +304,6 @@ fn manager_visible(manager: &PackageManager) -> bool {
     }
 }
 
-fn split(command: &str) -> (String, Vec<String>) {
-    // Recipes with embedded quoted segments (the scoop one-liner) must keep
-    // the quoted part as a single argument, so split on quotes first.
-    if let Some(idx) = command.find('"') {
-        let head = command[..idx].trim();
-        let quoted = command[idx..].trim_matches('"').to_string();
-        let mut parts = head.split_whitespace();
-        let program = parts.next().unwrap_or_default().to_string();
-        let mut args: Vec<String> = parts.map(ToOwned::to_owned).collect();
-        args.push(quoted);
-        (program, args)
-    } else {
-        let mut parts = command.split_whitespace();
-        let program = parts.next().unwrap_or_default().to_string();
-        (program, parts.map(ToOwned::to_owned).collect())
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -275,7 +318,7 @@ mod tests {
             PackageManager::Yarn,
             PackageManager::Pipx,
         ] {
-            assert!(recipe_for(&m).is_some(), "expected recipe for {m:?}");
+            assert!(recipe_for(&m, false).is_some(), "expected recipe for {m:?}");
         }
     }
 
@@ -289,17 +332,36 @@ mod tests {
             PackageManager::DotnetTool,
             PackageManager::Winget,
         ] {
-            assert!(recipe_for(&m).is_none(), "no recipe expected for {m:?}");
+            assert!(
+                recipe_for(&m, false).is_none(),
+                "no recipe expected for {m:?}"
+            );
             assert!(install_hint(&m).is_some(), "hint expected for {m:?}");
         }
     }
 
     #[test]
-    fn split_keeps_quoted_segment_intact() {
-        let (program, args) =
-            split(r#"powershell -NoProfile -Command "iwr -useb get.scoop.sh | iex""#);
-        assert_eq!(program, "powershell");
-        assert_eq!(args.last().unwrap(), "iwr -useb get.scoop.sh | iex");
-        assert!(args.contains(&"-Command".to_string()));
+    fn scoop_recipe_switches_to_run_as_admin_when_elevated() {
+        let normal = recipe_for(&PackageManager::Scoop, false).unwrap();
+        assert!(normal
+            .args
+            .last()
+            .unwrap()
+            .contains("iwr -useb get.scoop.sh"));
+        assert!(!normal.display.contains("RunAsAdmin"));
+
+        let admin = recipe_for(&PackageManager::Scoop, true).unwrap();
+        assert!(admin.args.last().unwrap().contains("-RunAsAdmin"));
+        assert_eq!(admin.program, "powershell");
+        // The script is a single argv element — no shell re-quoting to break.
+        assert_eq!(admin.args.len(), 3);
+    }
+
+    #[test]
+    fn winget_recipes_pin_the_winget_source() {
+        let choco = recipe_for(&PackageManager::Chocolatey, false).unwrap();
+        assert!(choco.args.contains(&"--source".to_string()));
+        assert!(choco.args.contains(&"winget".to_string()));
+        assert_eq!(choco.requires, Some("winget"));
     }
 }

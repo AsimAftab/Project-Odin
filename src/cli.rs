@@ -353,7 +353,13 @@ pub struct RestoreArgs {
     )]
     pub apply: bool,
 
-    #[arg(long, help = "Continue restoring after a package command fails.")]
+    /// Stop at the first failed package install. By default Odin keeps going
+    /// and collects every failure into the end-of-run report.
+    #[arg(long)]
+    pub fail_fast: bool,
+
+    /// Deprecated: continuing is now the default. Kept for compatibility.
+    #[arg(long, hide = true)]
     pub continue_on_error: bool,
 
     /// Restore only these sections (comma-separated): packages,extensions,git,env,path.

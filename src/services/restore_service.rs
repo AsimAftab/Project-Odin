@@ -97,7 +97,9 @@ impl RestoreOptions {
             disabled,
             managers,
             exclude: args.exclude.iter().map(|e| e.to_lowercase()).collect(),
-            continue_on_error: args.continue_on_error,
+            // Continue-on-error is the default for bulk restores; --fail-fast
+            // opts back into abort-at-first-failure.
+            continue_on_error: !args.fail_fast,
             bootstrap_managers: args.bootstrap_managers,
             non_interactive: args.non_interactive || args.json,
             quiet: args.json,
@@ -422,12 +424,22 @@ pub fn build_plan(
             } else {
                 PlanAction::WillInstall
             };
+            // winget commands are regenerated from the id rather than replayed
+            // from the snapshot: snapshots captured before the --source fix
+            // carry a command shape that fails on machines with a broken
+            // msstore source.
+            let install_command = match (&p.source, &p.install_command) {
+                (PackageManager::Winget, Some(_)) => {
+                    Some(crate::integrations::package_managers::winget_install_command(&p.id))
+                }
+                _ => p.install_command.clone(),
+            };
             PlannedPackage {
                 id: p.id.clone(),
                 name: p.name.clone(),
                 version: p.version.clone(),
                 source: p.source.clone(),
-                install_command: p.install_command.clone(),
+                install_command,
                 action,
             }
         })
@@ -943,6 +955,34 @@ mod tests {
         assert_eq!(action_of("scoop-tool"), PlanAction::ManagerMissing);
         assert_eq!(plan.missing_managers, vec![PackageManager::Scoop]);
         assert_eq!(plan.count(&PlanAction::WillInstall), 1);
+    }
+
+    #[test]
+    fn plan_normalizes_winget_commands_from_old_snapshots() {
+        // Snapshots captured before the --source fix carry a command without
+        // `--source winget`; the plan must regenerate it from the id.
+        let snapshot = PackageSnapshot {
+            packages: vec![pkg(
+                "Amazon.Kiro",
+                PackageManager::Winget,
+                Some("winget install --id Amazon.Kiro --exact --accept-package-agreements --accept-source-agreements"),
+            )],
+        };
+        let current = PackageSnapshot { packages: vec![] };
+        let env = empty_env();
+        let vscode = VsCodeExtensionsSnapshot { extensions: vec![] };
+        let git = GitConfigSnapshot { entries: vec![] };
+        let inputs = RestoreInputs {
+            packages: &snapshot,
+            environment: &env,
+            vscode: &vscode,
+            git: &git,
+        };
+        let options = options_with(&["winget"], &[]);
+        let plan = build_plan(&options, &inputs, &current, &managers(&["winget"]));
+        let command = plan.packages[0].install_command.as_deref().unwrap();
+        assert!(command.contains("--source winget"), "got: {command}");
+        assert_eq!(plan.packages[0].action, PlanAction::WillInstall);
     }
 
     #[test]

@@ -69,7 +69,19 @@ fn resolve_command(command: &str) -> Option<PathBuf> {
     if path.is_absolute() || command.contains('\\') || command.contains('/') {
         return path.exists().then(|| path.to_path_buf());
     }
-    which::which(command).ok()
+    if let Ok(found) = which::which(command) {
+        return Some(found);
+    }
+    // Freshly-installed managers aren't on this session's PATH yet (their
+    // shims land via a registry PATH update that only new shells see). Fall
+    // back to their well-known install locations so a bootstrap-then-install
+    // restore works without a shell restart.
+    let candidates = match command {
+        "scoop" => crate::integrations::package_managers::scoop_candidates(),
+        "choco" => crate::integrations::package_managers::choco_candidates(),
+        _ => Vec::new(),
+    };
+    candidates.into_iter().find(|c| c.exists())
 }
 
 fn is_windows_command_script(path: &Path) -> bool {

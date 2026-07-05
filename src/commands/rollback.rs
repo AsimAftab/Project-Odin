@@ -104,7 +104,7 @@ pub async fn run(ctx: AppContext, args: RollbackArgs) -> Result<()> {
 
     let store = SnapshotStore::new(ctx.odin_dir().clone());
     let restore_service = RestoreService::new(store);
-    let options = RestoreOptions::from_config(&ctx.config().restore, false);
+    let options = RestoreOptions::from_config(&ctx.config().restore, true);
 
     let (packages, environment, vscode, git) = restore_service.load_history(&resolved_id).await?;
     let inputs = RestoreInputs {
