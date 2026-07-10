@@ -40,6 +40,8 @@ impl Default for OdinConfig {
                 restore_path: true,
                 restore_vscode_extensions: true,
                 restore_git_config: true,
+                restore_terminal_settings: true,
+                restore_powershell_profile: true,
             },
             sync: SyncConfig {
                 branch: "main".to_string(),
@@ -69,6 +71,15 @@ pub struct RestoreConfig {
     pub restore_path: bool,
     pub restore_vscode_extensions: bool,
     pub restore_git_config: bool,
+    // `default` keeps config.yaml files written before these sections loadable.
+    #[serde(default = "default_true")]
+    pub restore_terminal_settings: bool,
+    #[serde(default = "default_true")]
+    pub restore_powershell_profile: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

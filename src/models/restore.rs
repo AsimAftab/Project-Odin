@@ -19,15 +19,19 @@ pub enum RestoreSection {
     Git,
     Env,
     Path,
+    Terminal,
+    PsProfile,
 }
 
 impl RestoreSection {
-    pub const ALL: [RestoreSection; 5] = [
+    pub const ALL: [RestoreSection; 7] = [
         RestoreSection::Packages,
         RestoreSection::Extensions,
         RestoreSection::Git,
         RestoreSection::Env,
         RestoreSection::Path,
+        RestoreSection::Terminal,
+        RestoreSection::PsProfile,
     ];
 
     pub fn label(&self) -> &'static str {
@@ -37,6 +41,8 @@ impl RestoreSection {
             RestoreSection::Git => "git",
             RestoreSection::Env => "env",
             RestoreSection::Path => "path",
+            RestoreSection::Terminal => "terminal",
+            RestoreSection::PsProfile => "ps-profile",
         }
     }
 }
@@ -157,6 +163,8 @@ pub struct RestoreReport {
     pub git: SectionResult,
     pub environment: SectionResult,
     pub path: SectionResult,
+    pub terminal: SectionResult,
+    pub ps_profile: SectionResult,
     pub manual: Vec<ManualItem>,
     pub bootstrapped_managers: Vec<String>,
 }
@@ -173,6 +181,8 @@ impl RestoreReport {
             git: SectionResult::default(),
             environment: SectionResult::default(),
             path: SectionResult::default(),
+            terminal: SectionResult::default(),
+            ps_profile: SectionResult::default(),
             manual: Vec::new(),
             bootstrapped_managers: Vec::new(),
         }
@@ -189,6 +199,8 @@ impl RestoreReport {
             || self.git.failed > 0
             || self.environment.failed > 0
             || self.path.failed > 0
+            || self.terminal.failed > 0
+            || self.ps_profile.failed > 0
     }
 
     pub fn installed_count(&self) -> usize {

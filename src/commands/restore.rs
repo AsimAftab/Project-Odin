@@ -156,12 +156,17 @@ fn pick_sections(options: &mut RestoreOptions, inputs: &RestoreInputs<'_>) -> Re
         .iter()
         .filter(|v| !v.name.eq_ignore_ascii_case("PATH"))
         .count();
+    let profile_count = |p: &Option<crate::models::environment::ProfileSnapshot>| {
+        usize::from(p.as_ref().is_some_and(|s| !s.content.is_empty()))
+    };
     let counts = [
         inputs.packages.packages.len(),
         inputs.vscode.extensions.len(),
         inputs.git.entries.len(),
         env_count,
         inputs.environment.path_entries.len(),
+        profile_count(&inputs.environment.terminal_settings),
+        profile_count(&inputs.environment.powershell_profile),
     ];
     let items: Vec<String> = RestoreSection::ALL
         .iter()

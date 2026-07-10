@@ -67,6 +67,28 @@ pub async fn profile_path_lossy() -> Option<PathBuf> {
     }
 }
 
+/// Reads a User-scope environment variable via the .NET API (the registry
+/// value, not this process's inherited copy). `None` if unset or unreadable.
+pub async fn get_user_env_var(name: &str) -> Result<Option<String>> {
+    let Some(exe) = executable() else {
+        anyhow::bail!("PowerShell not found; cannot read environment variable '{name}'");
+    };
+    let script = format!("[Environment]::GetEnvironmentVariable({name:?}, 'User')");
+    let output = process::capture(&exe, &["-NoProfile", "-Command", &script]).await?;
+    if output.code != 0 {
+        anyhow::bail!(
+            "reading environment variable '{name}' failed: {}",
+            output.stderr
+        );
+    }
+    let value = output.stdout.trim();
+    Ok(if value.is_empty() {
+        None
+    } else {
+        Some(value.to_string())
+    })
+}
+
 pub async fn set_user_env_var(name: &str, value: &str) -> Result<()> {
     let Some(exe) = executable() else {
         anyhow::bail!("PowerShell not found; cannot set environment variable '{name}'");
