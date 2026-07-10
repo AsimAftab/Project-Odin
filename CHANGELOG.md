@@ -8,15 +8,22 @@ break). Releases are cut by pushing a `v*.*.*` tag (see `docs/release.md`).
 
 ## [Unreleased]
 
+## [0.12.0] — 2026-07-11
+
 ### Changed
 
 - PATH restore now merges into the live user PATH (with a pre-restore backup
   in `~/.odin/logs/`) instead of replacing it.
+- Security: updated `crossbeam-epoch` and `quinn-proto` for RUSTSEC-2026-0204
+  and RUSTSEC-2026-0185.
 
 ### Added
 
 - Restore sections `terminal` and `ps-profile`: Windows Terminal settings and
-  the PowerShell profile are now restored, not just captured.
+  the PowerShell profile are now restored, not just captured (with backups of
+  the existing files).
+- OSS hygiene: code of conduct, issue/PR templates, CODEOWNERS, dependabot,
+  MSRV (1.88) + `cargo audit` enforced in CI.
 
 ## [0.11.0] — 2026-07-05
 
