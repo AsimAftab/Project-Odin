@@ -1,5 +1,9 @@
 # Odin
 
+[![CI](https://github.com/AsimAftab/Project-Odin/actions/workflows/ci.yml/badge.svg)](https://github.com/AsimAftab/Project-Odin/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/AsimAftab/Project-Odin)](https://github.com/AsimAftab/Project-Odin/releases/latest)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 Odin is a Windows-first developer environment management CLI. It snapshots the tools, package managers, shell profiles, Git settings, VS Code extensions, terminal settings, environment variables, and PATH state needed to recreate a workstation.
 
 The primary workflow is:
