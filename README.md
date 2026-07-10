@@ -258,25 +258,17 @@ cargo build --release
 odin --help
 ```
 
-To build the MSI locally (requires the [WiX Toolset 3.x](https://wixtoolset.org/docs/wix3/) installed):
-
-```powershell
-cargo install cargo-wix --locked
-cargo wix --nocapture
-# MSI lands in target\wix\odin-<version>-x86_64.msi
-```
-
 ## Release Automation
 
 GitHub Actions workflows are included:
 
 - `.github/workflows/ci.yml` runs format checks, clippy, tests, and release build.
-- `.github/workflows/release.yml` builds `odin.exe` and the MSI installer, creates a GitHub Release, and uploads:
-  - `odin-<version>-x86_64.msi` (MSI installer)
+- `.github/workflows/release.yml` builds `odin.exe`, creates a GitHub Release, and uploads:
   - `odin.exe`
   - `odin-windows-x64.zip`
   - `install.ps1`, `uninstall.ps1`, `bootstrap.ps1`
   - `checksums.txt`
+- `.github/workflows/winget.yml` submits the new version to `microsoft/winget-pkgs` after each release.
 
 ## Development
 

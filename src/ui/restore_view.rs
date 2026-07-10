@@ -198,6 +198,8 @@ pub fn print_report(report: &RestoreReport) {
         ("git", &report.git),
         ("env", &report.environment),
         ("PATH", &report.path),
+        ("terminal", &report.terminal),
+        ("ps-profile", &report.ps_profile),
     ];
     let summary: Vec<String> = sections
         .iter()

@@ -6,6 +6,8 @@
 //! install list collects everything Odin couldn't do (unavailable in the
 //! manager, manager missing, no install command, failed).
 
+use std::path::Path;
+
 use anyhow::{Context, Result};
 use colored::Colorize;
 use indicatif::{ProgressBar, ProgressStyle};
@@ -14,7 +16,7 @@ use crate::cli::RestoreArgs;
 use crate::integrations::process::CommandOutput;
 use crate::integrations::{git_cli, powershell, process, vscode as vscode_integration};
 use crate::models::config::RestoreConfig;
-use crate::models::environment::EnvironmentSnapshot;
+use crate::models::environment::{EnvironmentSnapshot, ProfileSnapshot};
 use crate::models::git::GitConfigSnapshot;
 use crate::models::package::{InstalledPackage, PackageManager, PackageSnapshot};
 use crate::models::restore::{
@@ -76,6 +78,8 @@ impl RestoreOptions {
                 RestoreSection::Git => config.restore_git_config,
                 RestoreSection::Env => config.restore_user_environment,
                 RestoreSection::Path => config.restore_path,
+                RestoreSection::Terminal => config.restore_terminal_settings,
+                RestoreSection::PsProfile => config.restore_powershell_profile,
             };
             if !config_on {
                 disabled.push((section, "disabled by config".to_string()));
@@ -118,6 +122,8 @@ impl RestoreOptions {
                 RestoreSection::Git => config.restore_git_config,
                 RestoreSection::Env => config.restore_user_environment,
                 RestoreSection::Path => config.restore_path,
+                RestoreSection::Terminal => config.restore_terminal_settings,
+                RestoreSection::PsProfile => config.restore_powershell_profile,
             };
             if on {
                 sections.push(section);
@@ -274,7 +280,35 @@ impl RestoreService {
         } else {
             SectionResult::default()
         };
-        let (environment, path) = execute_environment(inputs.environment, options).await;
+        let backup_dir = self.store.root().join("logs");
+        let (environment, path) =
+            execute_environment(inputs.environment, options, &backup_dir).await;
+
+        let terminal = if options.section_enabled(RestoreSection::Terminal) {
+            restore_profile(
+                inputs.environment.terminal_settings.as_ref(),
+                crate::integrations::windows::terminal_settings_target(),
+                &backup_dir,
+                "terminal settings",
+                options,
+            )
+            .await
+        } else {
+            SectionResult::default()
+        };
+        let ps_profile = if options.section_enabled(RestoreSection::PsProfile) {
+            let target = powershell::profile_path_lossy().await;
+            restore_profile(
+                inputs.environment.powershell_profile.as_ref(),
+                target,
+                &backup_dir,
+                "PowerShell profile",
+                options,
+            )
+            .await
+        } else {
+            SectionResult::default()
+        };
 
         let manual = manual_items(&packages);
 
@@ -288,6 +322,8 @@ impl RestoreService {
             git,
             environment,
             path,
+            terminal,
+            ps_profile,
             manual,
             bootstrapped_managers: bootstrapped,
         })
@@ -472,6 +508,12 @@ pub fn build_plan(
                 RestoreSection::Git => inputs.git.entries.len(),
                 RestoreSection::Env => env_count,
                 RestoreSection::Path => inputs.environment.path_entries.len(),
+                RestoreSection::Terminal => {
+                    profile_item_count(&inputs.environment.terminal_settings)
+                }
+                RestoreSection::PsProfile => {
+                    profile_item_count(&inputs.environment.powershell_profile)
+                }
             };
             SectionPlan {
                 section,
@@ -736,6 +778,7 @@ async fn execute_git(git: &GitConfigSnapshot, options: &RestoreOptions) -> Secti
 async fn execute_environment(
     environment: &EnvironmentSnapshot,
     options: &RestoreOptions,
+    backup_dir: &Path,
 ) -> (SectionResult, SectionResult) {
     let mut env_result = SectionResult::default();
     let mut path_result = SectionResult::default();
@@ -767,34 +810,214 @@ async fn execute_environment(
     }
 
     if options.section_enabled(RestoreSection::Path) {
-        let path_value = environment
+        let snapshot_entries: Vec<&str> = environment
             .path_entries
             .iter()
             .map(|entry| entry.value.as_str())
-            .collect::<Vec<_>>()
-            .join(";");
-        if !path_value.is_empty() {
-            path_result.attempted = environment.path_entries.len();
-            match powershell::set_user_env_var("Path", &path_value).await {
-                Ok(_) => {
-                    path_result.succeeded = environment.path_entries.len();
-                    if !options.quiet {
-                        println!(
-                            "  {}  PATH bound — {} entries",
-                            "✓".green().bold(),
-                            environment.path_entries.len().to_string().cyan().bold()
-                        );
-                    }
-                }
-                Err(e) => {
-                    path_result.failed = environment.path_entries.len();
-                    path_result.errors.push(format!("PATH: {e:#}"));
-                }
-            }
+            .collect();
+        if !snapshot_entries.is_empty() {
+            path_result = restore_path_merged(&snapshot_entries, options, backup_dir).await;
         }
     }
 
     (env_result, path_result)
+}
+
+/// Merges the snapshot's PATH entries into the live user PATH instead of
+/// replacing it: live entries keep their order, snapshot entries not already
+/// present are appended. The pre-restore PATH is backed up to `backup_dir`
+/// before anything is written; if the backup can't be written, PATH is left
+/// untouched.
+async fn restore_path_merged(
+    snapshot_entries: &[&str],
+    options: &RestoreOptions,
+    backup_dir: &Path,
+) -> SectionResult {
+    let mut result = SectionResult {
+        attempted: snapshot_entries.len(),
+        ..SectionResult::default()
+    };
+
+    let live = match powershell::get_user_env_var("Path").await {
+        Ok(value) => value.unwrap_or_default(),
+        Err(e) => {
+            result.failed = snapshot_entries.len();
+            result.errors.push(format!("PATH: {e:#}"));
+            return result;
+        }
+    };
+
+    let (merged, added) = merge_path(&live, snapshot_entries);
+    if added == 0 {
+        result.succeeded = snapshot_entries.len();
+        if !options.quiet {
+            println!(
+                "  {}  PATH already contains all {} entrie(s)",
+                "·".green(),
+                snapshot_entries.len().to_string().cyan().bold()
+            );
+        }
+        return result;
+    }
+
+    let backup_path = backup_dir.join(format!(
+        "path-backup-{}.txt",
+        chrono::Utc::now().format("%Y%m%dT%H%M%S")
+    ));
+    if let Err(e) = tokio::fs::create_dir_all(backup_dir)
+        .await
+        .and(std::fs::write(&backup_path, &live))
+    {
+        result.failed = snapshot_entries.len();
+        result
+            .errors
+            .push(format!("PATH: backup failed, PATH left untouched: {e:#}"));
+        return result;
+    }
+
+    match powershell::set_user_env_var("Path", &merged).await {
+        Ok(_) => {
+            result.succeeded = snapshot_entries.len();
+            if !options.quiet {
+                println!(
+                    "  {}  PATH merged — {} new entrie(s) appended (backup: {})",
+                    "✓".green().bold(),
+                    added.to_string().cyan().bold(),
+                    backup_path.display().to_string().dimmed()
+                );
+            }
+        }
+        Err(e) => {
+            result.failed = snapshot_entries.len();
+            result.errors.push(format!("PATH: {e:#}"));
+        }
+    }
+    result
+}
+
+/// Pure PATH merge: live entries first (order preserved), then snapshot
+/// entries not already present. Comparison is case-insensitive and ignores a
+/// trailing backslash. Returns the joined PATH and how many entries were added.
+pub fn merge_path(live: &str, snapshot_entries: &[&str]) -> (String, usize) {
+    fn key(entry: &str) -> String {
+        entry.trim().trim_end_matches('\\').to_ascii_lowercase()
+    }
+    let mut merged: Vec<String> = live
+        .split(';')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(ToOwned::to_owned)
+        .collect();
+    let mut added = 0;
+    for entry in snapshot_entries {
+        let entry = entry.trim();
+        if entry.is_empty() {
+            continue;
+        }
+        if !merged.iter().any(|m| key(m) == key(entry)) {
+            merged.push(entry.to_string());
+            added += 1;
+        }
+    }
+    (merged.join(";"), added)
+}
+
+/// 1 if the snapshot carries restorable content for this profile, else 0.
+fn profile_item_count(profile: &Option<ProfileSnapshot>) -> usize {
+    usize::from(profile.as_ref().is_some_and(|p| !p.content.is_empty()))
+}
+
+/// Writes a captured profile file (Windows Terminal settings.json, PowerShell
+/// profile) back to its location on THIS machine. The existing file, if any
+/// and different, is backed up to `backup_dir` first; a failed backup aborts
+/// the write. A missing target (app not installed / no PowerShell) is a skip,
+/// not a failure.
+async fn restore_profile(
+    snapshot: Option<&ProfileSnapshot>,
+    target: Option<std::path::PathBuf>,
+    backup_dir: &Path,
+    label: &str,
+    options: &RestoreOptions,
+) -> SectionResult {
+    let mut result = SectionResult::default();
+    let Some(snapshot) = snapshot else {
+        return result;
+    };
+    if snapshot.content.is_empty() {
+        return result;
+    }
+    let Some(target) = target else {
+        if !options.quiet {
+            println!(
+                "  {}  {label} skipped — no target location on this machine",
+                "!".yellow().bold()
+            );
+        }
+        return result;
+    };
+
+    result.attempted = 1;
+
+    let live = tokio::fs::read_to_string(&target).await.ok();
+    if live.as_deref() == Some(snapshot.content.as_str()) {
+        result.succeeded = 1;
+        if !options.quiet {
+            println!("  {}  {label} already current", "·".green());
+        }
+        return result;
+    }
+
+    if let Some(live) = &live {
+        let file_name = target
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_else(|| "profile".to_string());
+        let backup_path = backup_dir.join(format!(
+            "{file_name}.{}.bak",
+            chrono::Utc::now().format("%Y%m%dT%H%M%S")
+        ));
+        if let Err(e) = tokio::fs::create_dir_all(backup_dir)
+            .await
+            .and(std::fs::write(&backup_path, live))
+        {
+            result.failed = 1;
+            result.errors.push(format!(
+                "{label}: backup failed, file left untouched: {e:#}"
+            ));
+            return result;
+        }
+        if !options.quiet {
+            println!(
+                "  {}  {label} backup: {}",
+                "·".dimmed(),
+                backup_path.display().to_string().dimmed()
+            );
+        }
+    }
+
+    let write = async {
+        if let Some(parent) = target.parent() {
+            tokio::fs::create_dir_all(parent).await?;
+        }
+        tokio::fs::write(&target, &snapshot.content).await
+    };
+    match write.await {
+        Ok(_) => {
+            result.succeeded = 1;
+            if !options.quiet {
+                println!(
+                    "  {}  {label} restored to {}",
+                    "✓".green().bold(),
+                    target.display().to_string().cyan()
+                );
+            }
+        }
+        Err(e) => {
+            result.failed = 1;
+            result.errors.push(format!("{label}: {e:#}"));
+        }
+    }
+    result
 }
 
 #[cfg(test)]
@@ -1142,5 +1365,53 @@ mod tests {
         assert_eq!(value["applied"], false);
         assert_eq!(value["snapshot"], "snap-1");
         assert_eq!(value["plan"]["packages"][0]["action"], "no_install_command");
+    }
+
+    #[test]
+    fn merge_path_appends_only_missing_entries() {
+        let live = r"C:\live\one;C:\shared";
+        let (merged, added) = merge_path(live, &[r"C:\shared", r"C:\snap\two"]);
+        assert_eq!(merged, r"C:\live\one;C:\shared;C:\snap\two");
+        assert_eq!(added, 1);
+    }
+
+    #[test]
+    fn merge_path_is_case_and_trailing_slash_insensitive() {
+        let live = r"C:\Tools\Bin;D:\Apps";
+        let (merged, added) = merge_path(live, &[r"c:\tools\bin\", r"d:\APPS"]);
+        assert_eq!(merged, live);
+        assert_eq!(added, 0);
+    }
+
+    #[test]
+    fn merge_path_preserves_live_order_and_skips_empties() {
+        let live = "C:\\a;;  ;C:\\b";
+        let (merged, added) = merge_path(live, &["", "C:\\c"]);
+        assert_eq!(merged, "C:\\a;C:\\b;C:\\c");
+        assert_eq!(added, 1);
+    }
+
+    #[test]
+    fn merge_path_with_empty_live_takes_snapshot_entries() {
+        let (merged, added) = merge_path("", &["C:\\a", "C:\\b"]);
+        assert_eq!(merged, "C:\\a;C:\\b");
+        assert_eq!(added, 2);
+    }
+
+    #[test]
+    fn profile_item_count_requires_content() {
+        assert_eq!(profile_item_count(&None), 0);
+        let empty = ProfileSnapshot {
+            path: "p".into(),
+            content: String::new(),
+            sha256: "e".into(),
+        };
+        assert_eq!(profile_item_count(&Some(empty)), 0);
+        let full = ProfileSnapshot {
+            path: "p".into(),
+            content: "set -x".into(),
+            sha256: "h".into(),
+        };
+        assert_eq!(profile_item_count(&Some(full)), 1);
     }
 }

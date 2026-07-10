@@ -107,6 +107,27 @@ pub async fn terminal_settings() -> Result<Option<ProfileSnapshot>> {
     Ok(None)
 }
 
+/// Where a restored Windows Terminal settings.json should be written on THIS
+/// machine (usernames may differ from the snapshot's recorded path). Returns
+/// the existing settings.json if present, else the first candidate whose
+/// LocalState directory exists (i.e. Windows Terminal is installed), else None.
+pub fn terminal_settings_target() -> Option<std::path::PathBuf> {
+    let base = paths::user_profile().ok()?;
+    let candidates = [
+        base.join(r"AppData\Local\Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState\settings.json"),
+        base.join(r"AppData\Local\Packages\Microsoft.WindowsTerminalPreview_8wekyb3d8bbwe\LocalState\settings.json"),
+    ];
+    candidates
+        .iter()
+        .find(|p| p.exists())
+        .or_else(|| {
+            candidates
+                .iter()
+                .find(|p| p.parent().is_some_and(|dir| dir.exists()))
+        })
+        .cloned()
+}
+
 pub fn expand_windows_env(value: &str) -> String {
     let mut expanded = value.to_string();
     for (key, val) in env::vars() {
