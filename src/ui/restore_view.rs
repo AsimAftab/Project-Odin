@@ -200,6 +200,7 @@ pub fn print_report(report: &RestoreReport) {
         ("PATH", &report.path),
         ("terminal", &report.terminal),
         ("ps-profile", &report.ps_profile),
+        ("vscode-settings", &report.vscode_settings),
     ];
     let summary: Vec<String> = sections
         .iter()

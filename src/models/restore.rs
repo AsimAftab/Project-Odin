@@ -21,10 +21,11 @@ pub enum RestoreSection {
     Path,
     Terminal,
     PsProfile,
+    VscodeSettings,
 }
 
 impl RestoreSection {
-    pub const ALL: [RestoreSection; 7] = [
+    pub const ALL: [RestoreSection; 8] = [
         RestoreSection::Packages,
         RestoreSection::Extensions,
         RestoreSection::Git,
@@ -32,6 +33,7 @@ impl RestoreSection {
         RestoreSection::Path,
         RestoreSection::Terminal,
         RestoreSection::PsProfile,
+        RestoreSection::VscodeSettings,
     ];
 
     pub fn label(&self) -> &'static str {
@@ -43,6 +45,7 @@ impl RestoreSection {
             RestoreSection::Path => "path",
             RestoreSection::Terminal => "terminal",
             RestoreSection::PsProfile => "ps-profile",
+            RestoreSection::VscodeSettings => "vscode-settings",
         }
     }
 }
@@ -165,6 +168,7 @@ pub struct RestoreReport {
     pub path: SectionResult,
     pub terminal: SectionResult,
     pub ps_profile: SectionResult,
+    pub vscode_settings: SectionResult,
     pub manual: Vec<ManualItem>,
     pub bootstrapped_managers: Vec<String>,
 }
@@ -183,6 +187,7 @@ impl RestoreReport {
             path: SectionResult::default(),
             terminal: SectionResult::default(),
             ps_profile: SectionResult::default(),
+            vscode_settings: SectionResult::default(),
             manual: Vec::new(),
             bootstrapped_managers: Vec::new(),
         }
@@ -201,6 +206,7 @@ impl RestoreReport {
             || self.path.failed > 0
             || self.terminal.failed > 0
             || self.ps_profile.failed > 0
+            || self.vscode_settings.failed > 0
     }
 
     pub fn installed_count(&self) -> usize {
