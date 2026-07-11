@@ -8,6 +8,15 @@ break). Releases are cut by pushing a `v*.*.*` tag (see `docs/release.md`).
 
 ## [Unreleased]
 
+## [0.13.1] — 2026-07-11
+
+### Changed
+
+- crates.io: published as [`odin-cli`](https://crates.io/crates/odin-cli)
+  (`cargo install odin-cli`; the binary is still `odin`) and releases now
+  publish there automatically.
+- Dependency upgrades: toml 1.1, which 8, indicatif 0.18.
+
 ## [0.13.0] — 2026-07-11
 
 ### Added

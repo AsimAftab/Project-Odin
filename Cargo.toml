@@ -1,7 +1,7 @@
 [package]
 # crates.io package is `odin-cli` (`odin` is squatted); the binary stays `odin`.
 name = "odin-cli"
-version = "0.13.0"
+version = "0.13.1"
 edition = "2021"
 rust-version = "1.88"
 authors = ["Odin contributors"]
