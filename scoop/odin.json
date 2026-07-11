@@ -1,10 +1,10 @@
 {
-  "version": "0.13.0",
+  "version": "0.13.1",
   "description": "Windows developer workstation snapshot, restore, sync, and diagnostics CLI",
   "homepage": "https://github.com/AsimAftab/Project-Odin",
   "license": "MIT",
-  "url": "https://github.com/AsimAftab/Project-Odin/releases/download/v0.13.0/odin-windows-x64.zip",
-  "hash": "a5a713f0d269e945714dfabcbd0fdbf57553c01cda0a1e721b5ef82ebf5875b6",
+  "url": "https://github.com/AsimAftab/Project-Odin/releases/download/v0.13.1/odin-windows-x64.zip",
+  "hash": "9fcce94b2cfcf14c162ec277666650fa32a13f0cc09c55425d9f76b9f010ee55",
   "bin": "odin.exe",
   "checkver": {
     "github": "https://github.com/AsimAftab/Project-Odin"
