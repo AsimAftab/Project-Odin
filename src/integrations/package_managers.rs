@@ -21,47 +21,68 @@ pub async fn detect_managers() -> Vec<PackageManagerInfo> {
         ("cargo", executable("cargo")),
         ("uv", executable("uv")),
     ];
+    // Version probes shell out once per manager — run them concurrently.
+    // Spawned handles are awaited in declaration order, so output order is
+    // stable.
+    let handles: Vec<_> = checks
+        .into_iter()
+        .map(|(name, executable)| {
+            tokio::spawn(async move {
+                let installed = executable.is_some();
+                let version = if installed {
+                    process::capture(executable.as_deref().unwrap_or(name), &["--version"])
+                        .await
+                        .ok()
+                        .map(|out| out.stdout)
+                        .filter(|s| !s.is_empty())
+                } else {
+                    None
+                };
+                PackageManagerInfo {
+                    name: name.to_string(),
+                    installed,
+                    executable,
+                    version,
+                }
+            })
+        })
+        .collect();
     let mut managers = Vec::new();
-    for (name, executable) in checks {
-        let installed = executable.is_some();
-        let version = if installed {
-            process::capture(executable.as_deref().unwrap_or(name), &["--version"])
-                .await
-                .ok()
-                .map(|out| out.stdout)
-                .filter(|s| !s.is_empty())
-        } else {
-            None
-        };
-        managers.push(PackageManagerInfo {
-            name: name.to_string(),
-            installed,
-            executable,
-            version,
-        });
+    for handle in handles {
+        match handle.await {
+            Ok(info) => managers.push(info),
+            Err(error) => eprintln!("warning: manager probe task failed: {error:#}"),
+        }
     }
     managers
 }
 
 pub async fn list_packages() -> Result<PackageSnapshot> {
+    // Each probe shells out to a different manager; running them sequentially
+    // made snapshot latency the sum of ~12 subprocess round-trips. Spawn them
+    // all and collect in a fixed order (ordering doesn't matter for the
+    // result — it's sorted below — but deterministic collection keeps warning
+    // output stable).
+    let handles = [
+        tokio::spawn(list_winget()),
+        tokio::spawn(list_choco()),
+        tokio::spawn(list_scoop()),
+        tokio::spawn(list_npm_globals()),
+        tokio::spawn(list_pip_globals()),
+        tokio::spawn(list_cargo_installs()),
+        tokio::spawn(list_pipx()),
+        tokio::spawn(list_pnpm_globals()),
+        tokio::spawn(list_yarn_globals()),
+        tokio::spawn(list_dotnet_tools()),
+        tokio::spawn(list_go_installs()),
+        tokio::spawn(list_uv_tools()),
+    ];
     let mut packages = Vec::new();
-    for result in [
-        list_winget().await,
-        list_choco().await,
-        list_scoop().await,
-        list_npm_globals().await,
-        list_pip_globals().await,
-        list_cargo_installs().await,
-        list_pipx().await,
-        list_pnpm_globals().await,
-        list_yarn_globals().await,
-        list_dotnet_tools().await,
-        list_go_installs().await,
-        list_uv_tools().await,
-    ] {
-        match result {
-            Ok(mut manager_packages) => packages.append(&mut manager_packages),
-            Err(error) => eprintln!("warning: package manager probe failed: {error:#}"),
+    for handle in handles {
+        match handle.await {
+            Ok(Ok(mut manager_packages)) => packages.append(&mut manager_packages),
+            Ok(Err(error)) => eprintln!("warning: package manager probe failed: {error:#}"),
+            Err(error) => eprintln!("warning: package manager probe task failed: {error:#}"),
         }
     }
     packages.sort_by(|left, right| left.id.cmp(&right.id));
