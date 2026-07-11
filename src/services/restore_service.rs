@@ -80,6 +80,7 @@ impl RestoreOptions {
                 RestoreSection::Path => config.restore_path,
                 RestoreSection::Terminal => config.restore_terminal_settings,
                 RestoreSection::PsProfile => config.restore_powershell_profile,
+                RestoreSection::VscodeSettings => config.restore_vscode_settings,
             };
             if !config_on {
                 disabled.push((section, "disabled by config".to_string()));
@@ -124,6 +125,7 @@ impl RestoreOptions {
                 RestoreSection::Path => config.restore_path,
                 RestoreSection::Terminal => config.restore_terminal_settings,
                 RestoreSection::PsProfile => config.restore_powershell_profile,
+                RestoreSection::VscodeSettings => config.restore_vscode_settings,
             };
             if on {
                 sections.push(section);
@@ -310,6 +312,12 @@ impl RestoreService {
             SectionResult::default()
         };
 
+        let vscode_settings = if options.section_enabled(RestoreSection::VscodeSettings) {
+            restore_vscode_settings(inputs.vscode, &backup_dir, options).await
+        } else {
+            SectionResult::default()
+        };
+
         let manual = manual_items(&packages);
 
         Ok(RestoreReport {
@@ -324,6 +332,7 @@ impl RestoreService {
             path,
             terminal,
             ps_profile,
+            vscode_settings,
             manual,
             bootstrapped_managers: bootstrapped,
         })
@@ -514,6 +523,7 @@ pub fn build_plan(
                 RestoreSection::PsProfile => {
                     profile_item_count(&inputs.environment.powershell_profile)
                 }
+                RestoreSection::VscodeSettings => vscode_settings_item_count(inputs.vscode),
             };
             SectionPlan {
                 section,
@@ -927,6 +937,91 @@ fn profile_item_count(profile: &Option<ProfileSnapshot>) -> usize {
     usize::from(profile.as_ref().is_some_and(|p| !p.content.is_empty()))
 }
 
+/// Restorable-file count for the vscode-settings section
+/// (settings.json + keybindings.json + snippets).
+fn vscode_settings_item_count(vscode: &VsCodeExtensionsSnapshot) -> usize {
+    profile_item_count(&vscode.settings)
+        + profile_item_count(&vscode.keybindings)
+        + vscode
+            .snippets
+            .iter()
+            .filter(|s| !s.content.is_empty())
+            .count()
+}
+
+/// Writes captured VS Code user config (settings.json, keybindings.json,
+/// snippets/*) back into the live `%APPDATA%\Code\User` directory — one
+/// backed-up [`restore_profile`] write per file. Skips (not fails) when
+/// VS Code has no user config dir on this machine.
+async fn restore_vscode_settings(
+    vscode: &VsCodeExtensionsSnapshot,
+    backup_dir: &Path,
+    options: &RestoreOptions,
+) -> SectionResult {
+    let mut result = SectionResult::default();
+    if vscode_settings_item_count(vscode) == 0 {
+        return result;
+    }
+    let Some(user_dir) = vscode_integration::user_config_dir() else {
+        if !options.quiet {
+            println!(
+                "  {}  VS Code settings skipped — no user config dir on this machine",
+                "!".yellow().bold()
+            );
+        }
+        return result;
+    };
+
+    let mut pieces = Vec::new();
+    pieces.push(
+        restore_profile(
+            vscode.settings.as_ref(),
+            Some(user_dir.join("settings.json")),
+            backup_dir,
+            "VS Code settings",
+            options,
+        )
+        .await,
+    );
+    pieces.push(
+        restore_profile(
+            vscode.keybindings.as_ref(),
+            Some(user_dir.join("keybindings.json")),
+            backup_dir,
+            "VS Code keybindings",
+            options,
+        )
+        .await,
+    );
+    for snippet in &vscode.snippets {
+        // Re-anchor by file name: the snapshot's absolute path may belong to a
+        // different user profile.
+        let name = Path::new(&snippet.path)
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_else(|| "snippet.json".to_string());
+        let label = format!("VS Code snippet {name}");
+        pieces.push(
+            restore_profile(
+                Some(snippet),
+                Some(user_dir.join("snippets").join(&name)),
+                backup_dir,
+                &label,
+                options,
+            )
+            .await,
+        );
+    }
+
+    for piece in pieces {
+        result.attempted += piece.attempted;
+        result.succeeded += piece.succeeded;
+        result.failed += piece.failed;
+        result.errors.extend(piece.errors);
+    }
+    result
+}
+
 /// Writes a captured profile file (Windows Terminal settings.json, PowerShell
 /// profile) back to its location on THIS machine. The existing file, if any
 /// and different, is backed up to `backup_dir` first; a failed backup aborts
@@ -1151,7 +1246,7 @@ mod tests {
             packages: vec![pkg("present.tool", PackageManager::Winget, None)],
         };
         let env = empty_env();
-        let vscode = VsCodeExtensionsSnapshot { extensions: vec![] };
+        let vscode = VsCodeExtensionsSnapshot::default();
         let git = GitConfigSnapshot { entries: vec![] };
         let inputs = RestoreInputs {
             packages: &snapshot,
@@ -1193,7 +1288,7 @@ mod tests {
         };
         let current = PackageSnapshot { packages: vec![] };
         let env = empty_env();
-        let vscode = VsCodeExtensionsSnapshot { extensions: vec![] };
+        let vscode = VsCodeExtensionsSnapshot::default();
         let git = GitConfigSnapshot { entries: vec![] };
         let inputs = RestoreInputs {
             packages: &snapshot,
@@ -1215,7 +1310,7 @@ mod tests {
         };
         let current = PackageSnapshot { packages: vec![] };
         let env = empty_env();
-        let vscode = VsCodeExtensionsSnapshot { extensions: vec![] };
+        let vscode = VsCodeExtensionsSnapshot::default();
         let git = GitConfigSnapshot { entries: vec![] };
         let inputs = RestoreInputs {
             packages: &snapshot,

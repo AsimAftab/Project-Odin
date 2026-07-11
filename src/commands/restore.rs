@@ -167,6 +167,9 @@ fn pick_sections(options: &mut RestoreOptions, inputs: &RestoreInputs<'_>) -> Re
         inputs.environment.path_entries.len(),
         profile_count(&inputs.environment.terminal_settings),
         profile_count(&inputs.environment.powershell_profile),
+        profile_count(&inputs.vscode.settings)
+            + profile_count(&inputs.vscode.keybindings)
+            + inputs.vscode.snippets.len(),
     ];
     let items: Vec<String> = RestoreSection::ALL
         .iter()

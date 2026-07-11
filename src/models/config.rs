@@ -42,6 +42,7 @@ impl Default for OdinConfig {
                 restore_git_config: true,
                 restore_terminal_settings: true,
                 restore_powershell_profile: true,
+                restore_vscode_settings: true,
             },
             sync: SyncConfig {
                 branch: "main".to_string(),
@@ -76,6 +77,8 @@ pub struct RestoreConfig {
     pub restore_terminal_settings: bool,
     #[serde(default = "default_true")]
     pub restore_powershell_profile: bool,
+    #[serde(default = "default_true")]
+    pub restore_vscode_settings: bool,
 }
 
 fn default_true() -> bool {
