@@ -112,6 +112,7 @@ async fn collect_machine(snapshot_id: uuid::Uuid) -> Result<MachineSnapshot> {
             .await
             .map(|p| p.to_string_lossy().to_string()),
         terminal_settings_path: windows::terminal_settings().await?.map(|p| p.path),
+        toolchains: crate::integrations::toolchains::capture().await,
     })
 }
 

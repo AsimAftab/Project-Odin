@@ -18,6 +18,17 @@ pub struct MachineSnapshot {
     pub developer_tools: Vec<DeveloperTool>,
     pub powershell_profile_path: Option<String>,
     pub terminal_settings_path: Option<String>,
+    /// Language-toolchain inventories (rustup/volta/nvm/pyenv/uv). `default`
+    /// keeps snapshots captured before this field existed loadable.
+    #[serde(default)]
+    pub toolchains: Vec<ToolchainInfo>,
+}
+
+/// One version manager's installed toolchains, as its own raw list lines.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToolchainInfo {
+    pub manager: String,
+    pub items: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
