@@ -87,3 +87,36 @@ jobs:
             dist/bootstrap.ps1
             dist/checksums.txt
           body_path: dist/release-notes.md
+
+  # Keeps scoop/odin.json on main pointing at the release that was just
+  # published (winget has its own workflow; scoop installs straight from the
+  # raw manifest URL).
+  update-scoop-manifest:
+    name: Update scoop manifest
+    needs: release-windows
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Bump manifest to released version
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          curl -sSL "https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/checksums.txt" -o /tmp/checksums.txt
+          HASH=$(tr -d '\r' < /tmp/checksums.txt | awk '/odin-windows-x64\.zip/ {print $1}')
+          test -n "$HASH"
+          jq --arg v "$VERSION" --arg h "$HASH" \
+             --arg u "https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}/odin-windows-x64.zip" \
+             '.version = $v | .hash = $h | .url = $u' \
+             scoop/odin.json > /tmp/odin.json && mv /tmp/odin.json scoop/odin.json
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add scoop/odin.json
+          git diff --cached --quiet && exit 0
+          git commit -m "chore: scoop manifest ${VERSION}"
+          git push
