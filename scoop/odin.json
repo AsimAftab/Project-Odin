@@ -1,22 +1,22 @@
 {
-    "version": "0.12.0",
-    "description": "Windows developer workstation snapshot, restore, sync, and diagnostics CLI",
-    "homepage": "https://github.com/AsimAftab/Project-Odin",
-    "license": "MIT",
-    "url": "https://github.com/AsimAftab/Project-Odin/releases/download/v0.12.0/odin-windows-x64.zip",
-    "hash": "c45e267377d042836b63a9360c96f22fd8de2a3226811bbf976b27f8cb58d44b",
-    "bin": "odin.exe",
-    "checkver": {
-        "github": "https://github.com/AsimAftab/Project-Odin"
-    },
-    "autoupdate": {
-        "url": "https://github.com/AsimAftab/Project-Odin/releases/download/v$version/odin-windows-x64.zip",
-        "hash": {
-            "url": "https://github.com/AsimAftab/Project-Odin/releases/download/v$version/checksums.txt",
-            "regex": "$sha256\\s+odin-windows-x64\\.zip"
-        }
-    },
-    "notes": [
-        "Run any odin command to create the ~/.odin workspace, or `odin init` for guided setup."
-    ]
+  "version": "0.13.0",
+  "description": "Windows developer workstation snapshot, restore, sync, and diagnostics CLI",
+  "homepage": "https://github.com/AsimAftab/Project-Odin",
+  "license": "MIT",
+  "url": "https://github.com/AsimAftab/Project-Odin/releases/download/v0.13.0/odin-windows-x64.zip",
+  "hash": "a5a713f0d269e945714dfabcbd0fdbf57553c01cda0a1e721b5ef82ebf5875b6",
+  "bin": "odin.exe",
+  "checkver": {
+    "github": "https://github.com/AsimAftab/Project-Odin"
+  },
+  "autoupdate": {
+    "url": "https://github.com/AsimAftab/Project-Odin/releases/download/v$version/odin-windows-x64.zip",
+    "hash": {
+      "url": "https://github.com/AsimAftab/Project-Odin/releases/download/v$version/checksums.txt",
+      "regex": "$sha256\\s+odin-windows-x64\\.zip"
+    }
+  },
+  "notes": [
+    "Run any odin command to create the ~/.odin workspace, or `odin init` for guided setup."
+  ]
 }
