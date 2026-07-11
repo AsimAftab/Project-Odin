@@ -120,3 +120,30 @@ jobs:
           git diff --cached --quiet && exit 0
           git commit -m "chore: scoop manifest ${VERSION}"
           git push
+
+  # Publishes odin-cli to crates.io. Runs on Windows because `cargo publish`
+  # verifies by building, and the crate only compiles on Windows targets.
+  publish-crate:
+    name: Publish to crates.io
+    needs: release-windows
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Verify tag matches Cargo.toml version
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          grep -q "^version = \"$VERSION\"$" Cargo.toml || {
+            echo "Cargo.toml version does not match tag $GITHUB_REF_NAME"; exit 1; }
+
+      - name: cargo publish
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish
