@@ -8,6 +8,26 @@ break). Releases are cut by pushing a `v*.*.*` tag (see `docs/release.md`).
 
 ## [Unreleased]
 
+## [0.13.0] — 2026-07-11
+
+### Added
+
+- Restore section `vscode-settings`: settings.json, keybindings.json, and
+  snippets are captured with the snapshot and restored (backup-first) into
+  the live VS Code user directory.
+- Language-toolchain capture in machine.json: rustup toolchains, volta/nvm
+  node versions, pyenv/uv pythons.
+- Scoop install path: `scoop/odin.json` manifest with autoupdate, bumped
+  automatically on each release.
+- End-to-end CLI test suite (`tests/cli.rs`) and an informational coverage
+  job in CI.
+
+### Changed
+
+- Snapshot capture and restore planning are much faster: package-manager
+  probes now run concurrently (~64s → ~8.5s restore dry-run on a loaded
+  machine).
+
 ## [0.12.0] — 2026-07-11
 
 ### Changed
