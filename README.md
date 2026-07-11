@@ -234,6 +234,14 @@ winget install AsimAftab.Odin
 
 `odin` is on PATH immediately, no SmartScreen warning, automatic updates via `winget upgrade`, and clean uninstall via `winget uninstall AsimAftab.Odin`. The workspace at `%USERPROFILE%\.odin` is created automatically on first use; run `odin init` only if you want the interactive setup with PATH validation and dependency checks.
 
+### scoop
+
+```powershell
+scoop install https://raw.githubusercontent.com/AsimAftab/Project-Odin/main/scoop/odin.json
+```
+
+The manifest carries `checkver`/`autoupdate` metadata and is bumped automatically on every release, so `scoop update odin` tracks new versions.
+
 ### PowerShell (CI/automation)
 
 Bootstrap from GitHub Releases:
