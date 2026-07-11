@@ -1352,7 +1352,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "odin"
+name = "odin-cli"
 version = "0.13.0"
 dependencies = [
  "anyhow",
