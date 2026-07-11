@@ -242,6 +242,14 @@ scoop install https://raw.githubusercontent.com/AsimAftab/Project-Odin/main/scoo
 
 The manifest carries `checkver`/`autoupdate` metadata and is bumped automatically on every release, so `scoop update odin` tracks new versions.
 
+### cargo (build from source)
+
+```powershell
+cargo install odin-cli    # installs the `odin` binary
+```
+
+The crates.io package is [`odin-cli`](https://crates.io/crates/odin-cli) (the bare `odin` name was already taken); the installed binary is `odin` either way.
+
 ### PowerShell (CI/automation)
 
 Bootstrap from GitHub Releases:
