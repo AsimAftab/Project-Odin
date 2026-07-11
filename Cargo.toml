@@ -41,6 +41,8 @@ which = "6.0"
 windows = { version = "0.52", features = ["Win32_Foundation", "Win32_Graphics_Dwm", "Win32_Graphics_Gdi", "Win32_UI_HiDpi", "Win32_UI_WindowsAndMessaging", "Win32_System_Threading"] }
 
 [dev-dependencies]
+assert_cmd = "2.2.2"
+predicates = "3.1.4"
 tempfile = "3.12"
 wiremock = "0.6"
 
