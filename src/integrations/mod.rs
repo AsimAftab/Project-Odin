@@ -9,6 +9,7 @@ pub mod plugin_loader;
 pub mod powershell;
 pub mod process;
 pub mod start_apps;
+pub mod toolchains;
 pub mod vscode;
 pub mod window_manager;
 pub mod windows;
