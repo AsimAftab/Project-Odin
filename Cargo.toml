@@ -43,7 +43,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 uuid = { version = "1.10", features = ["v4", "serde"] }
 which = "8.0"
-windows = { version = "0.52", features = ["Win32_Foundation", "Win32_Graphics_Dwm", "Win32_Graphics_Gdi", "Win32_UI_HiDpi", "Win32_UI_WindowsAndMessaging", "Win32_System_Threading"] }
+windows = { version = "0.62", features = ["Win32_Foundation", "Win32_Graphics_Dwm", "Win32_Graphics_Gdi", "Win32_UI_HiDpi", "Win32_UI_WindowsAndMessaging", "Win32_System_Threading"] }
 
 [dev-dependencies]
 assert_cmd = "2.2.2"
